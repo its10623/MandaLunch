@@ -5,12 +5,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mandalunch.domain.model.Restaurant
+import com.example.mandalunch.domain.model.ShareMessage
 import com.example.mandalunch.domain.usecase.GetCurrentLocationUseCase
 import com.example.mandalunch.domain.usecase.SearchNearbyRestaurantsUseCase
 import com.example.mandalunch.presentation.navigation.Routes
+import com.example.mandalunch.presentation.util.formatDistanceWithTime
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,6 +38,15 @@ sealed class RestaurantUiState {
     data class Error(val message: String) : RestaurantUiState()
 }
 
+/**
+ * RestaurantScreen 일회성 이벤트.
+ *
+ *  - [ShareToKakao] : 카카오톡 공유 요청 (Screen → KakaoShareLauncher 호출)
+ */
+sealed class RestaurantUiEvent {
+    data class ShareToKakao(val message: ShareMessage) : RestaurantUiEvent()
+}
+
 @HiltViewModel
 class RestaurantViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -51,6 +65,9 @@ class RestaurantViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<RestaurantUiState>(RestaurantUiState.Loading)
     val uiState: StateFlow<RestaurantUiState> = _uiState.asStateFlow()
 
+    private val _events = MutableSharedFlow<RestaurantUiEvent>()
+    val events: SharedFlow<RestaurantUiEvent> = _events.asSharedFlow()
+
     /**
      * Screen에서 권한 요청 결과를 전달한다.
      * granted = true 이면 위치 → 음식점 검색 흐름을 시작한다.
@@ -61,6 +78,24 @@ class RestaurantViewModel @Inject constructor(
             return
         }
         loadRestaurants()
+    }
+
+    fun onShareRestaurant(restaurant: Restaurant) {
+        viewModelScope.launch {
+            val distance = formatDistanceWithTime(restaurant.distanceMeters)
+            val address = restaurant.roadAddressName.ifBlank { restaurant.addressName }
+            val kakaoMapUrl = restaurant.placeUrl.ifBlank {
+                "https://map.kakao.com/link/map/${restaurant.placeName},${restaurant.latitude},${restaurant.longitude}"
+            }
+            val message = ShareMessage(
+                title = restaurant.placeName,
+                description = "$address · $distance",
+                linkWebUrl = kakaoMapUrl,
+                linkMobileWebUrl = kakaoMapUrl,
+                buttonTitle = "카카오맵에서 보기"
+            )
+            _events.emit(RestaurantUiEvent.ShareToKakao(message))
+        }
     }
 
     /**

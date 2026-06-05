@@ -25,9 +25,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -49,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mandalunch.domain.model.Restaurant
+import com.example.mandalunch.presentation.share.KakaoShareLauncher
 import com.example.mandalunch.presentation.ui.component.SpinButton
 import com.example.mandalunch.presentation.ui.theme.AccentBlue
 import com.example.mandalunch.presentation.ui.theme.AccentGreen
@@ -60,7 +65,9 @@ import com.example.mandalunch.presentation.ui.theme.SurfaceDark
 import com.example.mandalunch.presentation.ui.theme.TextDim
 import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.util.cleanCategory
+import com.example.mandalunch.presentation.util.findActivity
 import com.example.mandalunch.presentation.util.formatDistanceWithTime
+import com.example.mandalunch.presentation.viewmodel.RestaurantUiEvent
 import com.example.mandalunch.presentation.viewmodel.RestaurantUiState
 import com.example.mandalunch.presentation.viewmodel.RestaurantViewModel
 
@@ -90,6 +97,15 @@ fun RestaurantScreen(
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { ev ->
+            when (ev) {
+                is RestaurantUiEvent.ShareToKakao ->
+                    KakaoShareLauncher.share(context.findActivity(), ev.message)
+            }
         }
     }
 
@@ -183,7 +199,8 @@ fun RestaurantScreen(
                             }
                             context.startActivity(intent)
                         }
-                    }
+                    },
+                    onShareClick = viewModel::onShareRestaurant
                 )
             }
         }
@@ -265,7 +282,8 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 @Composable
 private fun SuccessContent(
     restaurants: List<Restaurant>,
-    onRestaurantClick: (String) -> Unit
+    onRestaurantClick: (String) -> Unit,
+    onShareClick: (Restaurant) -> Unit
 ) {
     if (restaurants.isEmpty()) {
         Column(
@@ -309,7 +327,8 @@ private fun SuccessContent(
             RestaurantCard(
                 rank = index + 1,
                 restaurant = restaurant,
-                onClick = { onRestaurantClick(restaurant.placeUrl) }
+                onClick = { onRestaurantClick(restaurant.placeUrl) },
+                onShareClick = { onShareClick(restaurant) }
             )
             if (index < restaurants.lastIndex) {
                 HorizontalDivider(
@@ -326,7 +345,8 @@ private fun SuccessContent(
 private fun RestaurantCard(
     rank: Int,
     restaurant: Restaurant,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onShareClick: () -> Unit
 ) {
     val distColor = distanceColor(restaurant.distanceMeters)
 
@@ -419,14 +439,26 @@ private fun RestaurantCard(
             }
         }
 
-        // 카카오맵 이동 화살표
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = "›",
-            color = TextDim,
-            style = TextStyle(fontSize = 22.sp),
-            modifier = Modifier.padding(top = 2.dp)
-        )
+        // 공유 버튼
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(
+                onClick = onShareClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "카카오톡으로 공유",
+                    tint = TextDim,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            // 카카오맵 이동 화살표
+            Text(
+                text = "›",
+                color = TextDim,
+                style = TextStyle(fontSize = 22.sp)
+            )
+        }
     }
 }
 
