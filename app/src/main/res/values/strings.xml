@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MandaLunch</string>
+    <string name="title_mandalart">오늘 점심 뭐 먹지?</string>
+    <string name="btn_spin_today">🎲 오늘 뭐 먹지?</string>
+    <string name="btn_spin_menu">🎲 메뉴 뽑기!</string>
+    <string name="content_desc_back">뒤로가기</string>
+</resources>
