@@ -9,6 +9,14 @@
         android:name="android.hardware.location"
         android:required="false" />
 
+    <queries>
+        <package android:name="com.kakao.talk" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="kakaolink" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MandaLunchApplication"
         android:allowBackup="true"

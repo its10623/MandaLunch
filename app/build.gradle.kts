@@ -15,6 +15,7 @@ val localProperties = Properties().apply {
     if (f.exists()) FileInputStream(f).use { load(it) }
 }
 val kakaoRestApiKey: String = localProperties.getProperty("kakao.rest.api.key") ?: ""
+val kakaoNativeAppKey: String = localProperties.getProperty("kakao.native.app.key") ?: ""
 
 android {
     namespace = "com.example.mandalunch"
@@ -28,6 +29,7 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoRestApiKey\"")
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoNativeAppKey\"")
     }
 
     buildTypes {
@@ -73,6 +75,8 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.play.services.location)
     implementation(libs.androidx.annotation)
+    implementation(libs.kakao.share)
+    implementation(libs.androidx.browser)
     debugImplementation(libs.androidx.ui.tooling)
 
     testImplementation(libs.junit)

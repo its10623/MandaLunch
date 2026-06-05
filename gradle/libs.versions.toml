@@ -18,6 +18,8 @@ junit = "4.13.2"
 mockk = "1.13.13"
 turbine = "1.2.0"
 androidxAnnotation = "1.9.1"
+kakaoShare = "2.20.6"
+androidxBrowser = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +52,8 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
+kakao-share = { group = "com.kakao.sdk", name = "v2-share", version.ref = "kakaoShare" }
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "androidxBrowser" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
