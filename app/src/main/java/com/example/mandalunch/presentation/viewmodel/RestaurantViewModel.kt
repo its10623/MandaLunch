@@ -84,12 +84,8 @@ class RestaurantViewModel @Inject constructor(
         viewModelScope.launch {
             val distance = formatDistanceWithTime(restaurant.distanceMeters)
             val address = restaurant.roadAddressName.ifBlank { restaurant.addressName }
-            val kakaoMapUrl = restaurant.placeUrl
-                .replace("http://", "https://")
-                .ifBlank {
-                    val encodedName = Uri.encode(restaurant.placeName)
-                    "https://map.kakao.com/link/map/$encodedName,${restaurant.latitude},${restaurant.longitude}"
-                }
+            val encodedName = Uri.encode(restaurant.placeName)
+            val kakaoMapUrl = "https://map.kakao.com/link/map/$encodedName,${restaurant.latitude},${restaurant.longitude}"
             val message = ShareMessage(
                 title = restaurant.placeName,
                 description = "$address · $distance",
