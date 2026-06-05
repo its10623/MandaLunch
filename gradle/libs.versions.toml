@@ -18,7 +18,7 @@ junit = "4.13.2"
 mockk = "1.13.13"
 turbine = "1.2.0"
 androidxAnnotation = "1.9.1"
-kakaoShare = "2.20.6"
+kakaoShare = "2.23.4"
 androidxBrowser = "1.8.0"
 
 [libraries]
