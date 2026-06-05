@@ -8,7 +8,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.mandalunch.presentation.share.KakaoShareLauncher
 import com.example.mandalunch.presentation.ui.component.GradientButton
 import com.example.mandalunch.presentation.ui.component.SpinButton
 import com.example.mandalunch.presentation.ui.theme.AccentBlue
@@ -33,6 +40,7 @@ import com.example.mandalunch.presentation.ui.theme.BackgroundDark
 import com.example.mandalunch.presentation.ui.theme.SurfaceDark
 import com.example.mandalunch.presentation.ui.theme.TextDim
 import com.example.mandalunch.presentation.ui.theme.TextPrimary
+import com.example.mandalunch.presentation.util.findActivity
 import com.example.mandalunch.presentation.viewmodel.ResultUiEvent
 import com.example.mandalunch.presentation.viewmodel.ResultViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -45,6 +53,7 @@ fun ResultScreen(
     viewModel: ResultViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { ev ->
@@ -52,6 +61,7 @@ fun ResultScreen(
                 is ResultUiEvent.NavigateBackToMandalart -> onNavigateBackToMandalart()
                 is ResultUiEvent.NavigateBackToMenuSelect -> onNavigateBackToMenuSelect()
                 is ResultUiEvent.NavigateToRestaurant -> onNavigateToRestaurant(ev.menuName, ev.categoryName)
+                is ResultUiEvent.ShareToKakao -> KakaoShareLauncher.share(context.findActivity(), ev.message)
             }
         }
     }
@@ -61,6 +71,21 @@ fun ResultScreen(
             .fillMaxSize()
             .background(BackgroundDark)
     ) {
+        // 공유 버튼 (우상단 오버레이)
+        IconButton(
+            onClick = viewModel::onShareClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 8.dp, end = 4.dp)
+                .size(48.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Share,
+                contentDescription = "카카오톡으로 공유",
+                tint = TextDim
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

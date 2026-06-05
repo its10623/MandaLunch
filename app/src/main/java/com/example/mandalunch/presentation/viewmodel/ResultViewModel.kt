@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mandalunch.domain.model.Category
+import com.example.mandalunch.domain.model.ShareMessage
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.presentation.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,7 @@ sealed class ResultUiEvent {
     object NavigateBackToMandalart : ResultUiEvent()
     object NavigateBackToMenuSelect : ResultUiEvent()
     data class NavigateToRestaurant(val menuName: String, val categoryName: String) : ResultUiEvent()
+    data class ShareToKakao(val message: ShareMessage) : ResultUiEvent()
 }
 
 @HiltViewModel
@@ -69,6 +71,27 @@ class ResultViewModel @Inject constructor(
         viewModelScope.launch {
             val categoryName = _uiState.value.category?.name ?: menuName
             _events.emit(ResultUiEvent.NavigateToRestaurant(menuName, categoryName))
+        }
+    }
+
+    fun onShareClick() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val emoji = state.category?.emoji ?: ""
+            val categoryName = state.category?.name ?: ""
+            val title = "오늘의 점심 추천"
+            val description = buildString {
+                if (emoji.isNotBlank()) append("$emoji ")
+                append(state.menuName)
+                if (categoryName.isNotBlank()) append(" ($categoryName)")
+                append("\nMandaLunch로 추천받았어요!")
+            }
+            val message = ShareMessage(
+                title = title,
+                description = description,
+                buttonTitle = "MandaLunch 열기"
+            )
+            _events.emit(ResultUiEvent.ShareToKakao(message))
         }
     }
 }
