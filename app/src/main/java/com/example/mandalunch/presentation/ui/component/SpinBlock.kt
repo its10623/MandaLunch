@@ -39,12 +39,7 @@ import com.example.mandalunch.presentation.ui.theme.Surface2Dark
 import com.example.mandalunch.presentation.ui.theme.TextDim
 import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.viewmodel.SpinState
-
-/** gridPos(row-major 0..8) → CW idx 매핑 (§0.2). gridPos 4 는 중심 SpinCell. */
-private val GRID_TO_CW = intArrayOf(0, 1, 2, 7, -1, 3, 6, 5, 4)
-
-/** CW idx → DB position 매핑 (§0.1). */
-private val CW_TO_POSITION = intArrayOf(0, 1, 2, 4, 7, 6, 5, 3)
+import com.example.mandalunch.presentation.viewmodel.util.MandalaLayout
 
 /** gridPos 0..8 순서의 방향 이모지. gridPos 4(중심)는 공백. */
 private val DIRECTION_EMOJI = arrayOf("↖", "↑", "↗", "←", "", "→", "↙", "↓", "↘")
@@ -86,8 +81,8 @@ fun SpinBlock(
                             onClick = onSpinClick
                         )
                     } else {
-                        val cwIdx = GRID_TO_CW[gridPos]
-                        val targetPos = CW_TO_POSITION[cwIdx]
+                        val cwIdx = MandalaLayout.GRID_TO_CW[gridPos]
+                        val targetPos = MandalaLayout.CW_TO_POSITION[cwIdx]
                         val category = categories.firstOrNull { it.position == targetPos }
                         val emoji = DIRECTION_EMOJI[gridPos]
                         val name = category?.name ?: ""

@@ -6,8 +6,9 @@ import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
+import com.example.mandalunch.presentation.viewmodel.util.MandalaLayout
+import com.example.mandalunch.presentation.viewmodel.util.SpinAnimator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,11 +40,6 @@ class MandalartViewModel @Inject constructor(
     private val getCategoriesUseCase: GetCategoriesUseCase,
     private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase
 ) : ViewModel() {
-
-    companion object {
-        // CW index → DB position 변환 (§0.1)
-        val CW_TO_POSITION = intArrayOf(0, 1, 2, 4, 7, 6, 5, 3)
-    }
 
     private val _uiState = MutableStateFlow(MandalartUiState())
     val uiState: StateFlow<MandalartUiState> = _uiState.asStateFlow()
@@ -107,7 +103,7 @@ class MandalartViewModel @Inject constructor(
         _uiState.update { it.copy(spinState = SpinState.Spinning, highlightedIndex = -1) }
 
         viewModelScope.launch {
-            runSpinAnimation(
+            SpinAnimator.run(
                 targetIndex = targetCwIndex,
                 onHighlight = { cwPos ->
                     _uiState.update { it.copy(highlightedIndex = cwPos) }
@@ -127,7 +123,7 @@ class MandalartViewModel @Inject constructor(
     fun onGoToMenuClick() {
         val state = _uiState.value
         val selected = state.spinState as? SpinState.Selected ?: return
-        val category = cwIndexToCategory(selected.categoryIndex, state.categories) ?: return
+        val category = MandalaLayout.cwIndexToCategory(selected.categoryIndex, state.categories) ?: return
         viewModelScope.launch {
             _events.emit(MandalartUiEvent.NavigateToMenuSelect(category.id))
         }
@@ -137,34 +133,4 @@ class MandalartViewModel @Inject constructor(
         _uiState.update { it.copy(spinState = SpinState.Idle, highlightedIndex = -1) }
     }
 
-    private fun cwIndexToCategory(cwIndex: Int, categories: List<Category>): Category? {
-        if (cwIndex !in 0..7) return null
-        val targetPosition = CW_TO_POSITION[cwIndex]
-        return categories.firstOrNull { it.position == targetPosition }
-    }
-
-    private suspend fun runSpinAnimation(
-        targetIndex: Int,
-        onHighlight: (Int) -> Unit,
-        onComplete: (Int) -> Unit
-    ) {
-        val rounds = 3
-        val totalSteps = rounds * 8 + targetIndex + 1
-        for (step in 0 until totalSteps) {
-            onHighlight(step % 8)
-            delay(getSpinDelay(step, totalSteps))
-        }
-        onComplete(targetIndex)
-    }
-
-    private fun getSpinDelay(step: Int, total: Int): Long {
-        val ratio = step.toFloat() / total
-        return when {
-            ratio < 0.50f -> 70L
-            ratio < 0.72f -> 120L
-            ratio < 0.88f -> 200L
-            ratio < 0.96f -> 320L
-            else          -> 480L
-        }
-    }
 }

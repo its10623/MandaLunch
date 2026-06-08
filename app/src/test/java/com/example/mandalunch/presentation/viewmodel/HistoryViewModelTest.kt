@@ -3,6 +3,7 @@ package com.example.mandalunch.presentation.viewmodel
 import app.cash.turbine.test
 import com.example.mandalunch.domain.model.RecommendHistory
 import com.example.mandalunch.domain.usecase.DeleteAllHistoryUseCase
+import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.domain.usecase.GetHistoryUseCase
 import com.example.mandalunch.testutil.MainDispatcherRule
 import io.mockk.coVerify
@@ -25,10 +26,13 @@ class HistoryViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val getHistoryUseCase: GetHistoryUseCase = mockk(relaxed = true)
+    private val getCategoriesUseCase: GetCategoriesUseCase = mockk(relaxed = true)
     private val deleteAllHistoryUseCase: DeleteAllHistoryUseCase = mockk(relaxed = true)
 
-    private fun createViewModel(): HistoryViewModel =
-        HistoryViewModel(getHistoryUseCase, deleteAllHistoryUseCase)
+    private fun createViewModel(): HistoryViewModel {
+        every { getCategoriesUseCase() } returns flowOf(emptyList())
+        return HistoryViewModel(getHistoryUseCase, getCategoriesUseCase, deleteAllHistoryUseCase)
+    }
 
     private val sampleHistories = listOf(
         RecommendHistory(

@@ -46,20 +46,6 @@ import com.example.mandalunch.presentation.viewmodel.HistoryUiEvent
 import com.example.mandalunch.presentation.viewmodel.HistoryViewModel
 import kotlinx.coroutines.flow.collectLatest
 
-// 카테고리명 → 이모지 매핑 (HistoryScreen 카드용)
-private val CATEGORY_EMOJI = mapOf(
-    "한식" to "🍚",
-    "중식" to "🥢",
-    "일식" to "🍣",
-    "양식" to "🍝",
-    "아시안" to "🌏",
-    "분식" to "🥡",
-    "프랜차이즈" to "🏪",
-    "건강식" to "🥗"
-)
-
-private fun emojiOf(categoryName: String): String =
-    CATEGORY_EMOJI[categoryName] ?: "🍽️"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,7 +220,7 @@ private fun HistoryRow(item: HistoryItemUi) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = emojiOf(item.categoryName),
+                text = item.categoryEmoji,
                 style = TextStyle(fontSize = 22.sp)
             )
             Spacer(Modifier.padding(horizontal = 6.dp))

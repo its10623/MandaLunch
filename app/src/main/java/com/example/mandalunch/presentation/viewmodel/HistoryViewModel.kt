@@ -3,8 +3,10 @@ package com.example.mandalunch.presentation.viewmodel
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.RecommendHistory
 import com.example.mandalunch.domain.usecase.DeleteAllHistoryUseCase
+import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.domain.usecase.GetHistoryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -32,6 +35,7 @@ data class HistoryItemUi(
     val id: Int,
     val menuName: String,
     val categoryName: String,
+    val categoryEmoji: String,
     val recommendedAt: Long,
     val timeLabel: String
 )
@@ -56,6 +60,7 @@ sealed class HistoryUiEvent {
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val getHistoryUseCase: GetHistoryUseCase,
+    private val getCategoriesUseCase: GetCategoriesUseCase,
     private val deleteAllHistoryUseCase: DeleteAllHistoryUseCase
 ) : ViewModel() {
 
@@ -67,10 +72,12 @@ class HistoryViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            getHistoryUseCase().collect { histories ->
+            combine(getHistoryUseCase(), getCategoriesUseCase()) { histories, categories ->
+                histories to categories
+            }.collect { (histories, categories) ->
                 _uiState.update {
                     it.copy(
-                        sections = groupByDate(histories),
+                        sections = groupByDate(histories, categories = categories),
                         isLoading = false,
                         isEmpty = histories.isEmpty()
                     )
@@ -102,6 +109,7 @@ class HistoryViewModel @Inject constructor(
     @VisibleForTesting
     internal fun groupByDate(
         histories: List<RecommendHistory>,
+        categories: List<Category> = emptyList(),
         now: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault()
     ): List<HistorySection> {
@@ -111,6 +119,7 @@ class HistoryViewModel @Inject constructor(
         val yesterday = today.minusDays(1)
         val mondayThisWeek = today.with(DayOfWeek.MONDAY)
         val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        val emojiByName = categories.associate { it.name to it.emoji }
 
         val grouped = histories.groupBy { h ->
             val date = Instant.ofEpochMilli(h.recommendedAt).atZone(zone).toLocalDate()
@@ -134,6 +143,7 @@ class HistoryViewModel @Inject constructor(
                                     id = h.id,
                                     menuName = h.menuName,
                                     categoryName = h.categoryName,
+                                    categoryEmoji = emojiByName[h.categoryName] ?: "🍽️",
                                     recommendedAt = h.recommendedAt,
                                     timeLabel = Instant.ofEpochMilli(h.recommendedAt)
                                         .atZone(zone)

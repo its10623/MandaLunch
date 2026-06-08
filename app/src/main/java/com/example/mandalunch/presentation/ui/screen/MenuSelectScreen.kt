@@ -78,9 +78,6 @@ fun MenuSelectScreen(
 
     LaunchedEffect(Unit) {
         viewModel.resetSpin()
-    }
-
-    LaunchedEffect(Unit) {
         viewModel.events.collectLatest { ev ->
             when (ev) {
                 is MenuSelectUiEvent.NavigateToResult ->

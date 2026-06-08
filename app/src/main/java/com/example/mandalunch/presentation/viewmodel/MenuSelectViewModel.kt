@@ -6,14 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.model.RecommendHistory
-import com.example.mandalunch.domain.repository.MenuRepository
 import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
+import com.example.mandalunch.domain.usecase.MarkAsRecommendedUseCase
 import com.example.mandalunch.domain.usecase.SaveHistoryUseCase
 import com.example.mandalunch.domain.usecase.ToggleFavoriteUseCase
 import com.example.mandalunch.presentation.navigation.Routes
+import com.example.mandalunch.presentation.viewmodel.util.SpinAnimator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,7 +43,7 @@ class MenuSelectViewModel @Inject constructor(
     private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase,
     private val saveHistoryUseCase: SaveHistoryUseCase,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
-    private val menuRepository: MenuRepository
+    private val markAsRecommendedUseCase: MarkAsRecommendedUseCase
 ) : ViewModel() {
 
     private val categoryId: Int =
@@ -106,7 +106,7 @@ class MenuSelectViewModel @Inject constructor(
         _uiState.update { it.copy(spinState = MenuSpinState.Spinning, highlightedIndex = -1) }
 
         viewModelScope.launch {
-            runSpinAnimation(
+            SpinAnimator.run(
                 targetIndex = targetIndex,
                 onHighlight = { pos -> _uiState.update { it.copy(highlightedIndex = pos) } },
                 onComplete = { finalIdx ->
@@ -140,7 +140,7 @@ class MenuSelectViewModel @Inject constructor(
     private suspend fun saveAndMark(menu: Menu) {
         val now = System.currentTimeMillis()
         val categoryName = _uiState.value.category?.name ?: ""
-        menuRepository.updateLastRecommended(menu.id, now)
+        markAsRecommendedUseCase(menu.id, now)
         saveHistoryUseCase(
             RecommendHistory(
                 menuId = menu.id,
@@ -151,28 +151,4 @@ class MenuSelectViewModel @Inject constructor(
         )
     }
 
-    private suspend fun runSpinAnimation(
-        targetIndex: Int,
-        onHighlight: (Int) -> Unit,
-        onComplete: (Int) -> Unit
-    ) {
-        val rounds = 3
-        val totalSteps = rounds * 8 + targetIndex + 1
-        for (step in 0 until totalSteps) {
-            onHighlight(step % 8)
-            delay(getSpinDelay(step, totalSteps))
-        }
-        onComplete(targetIndex)
-    }
-
-    private fun getSpinDelay(step: Int, total: Int): Long {
-        val ratio = step.toFloat() / total
-        return when {
-            ratio < 0.50f -> 70L
-            ratio < 0.72f -> 120L
-            ratio < 0.88f -> 200L
-            ratio < 0.96f -> 320L
-            else          -> 480L
-        }
-    }
 }

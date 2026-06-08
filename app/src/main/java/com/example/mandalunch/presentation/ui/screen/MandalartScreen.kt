@@ -41,10 +41,8 @@ import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.viewmodel.MandalartUiEvent
 import com.example.mandalunch.presentation.viewmodel.MandalartViewModel
 import com.example.mandalunch.presentation.viewmodel.SpinState
+import com.example.mandalunch.presentation.viewmodel.util.MandalaLayout
 import kotlinx.coroutines.flow.collectLatest
-
-// CW idx → DB position 매핑 (§0.1)
-private val CW_TO_POSITION = intArrayOf(0, 1, 2, 4, 7, 6, 5, 3)
 
 /**
  * 9x9 만다라트 그리드 화면.
@@ -63,9 +61,6 @@ fun MandalartScreen(
 
     LaunchedEffect(Unit) {
         viewModel.resetSpin()
-    }
-
-    LaunchedEffect(Unit) {
         viewModel.events.collectLatest { ev ->
             when (ev) {
                 is MandalartUiEvent.NavigateToMenuSelect -> onNavigateToMenuSelect(ev.categoryId)
@@ -139,7 +134,7 @@ fun MandalartScreen(
             // 하단 두 상태 버튼
             when (val s = state.spinState) {
                 is SpinState.Selected -> {
-                    val cat = cwIndexToCategoryUi(s.categoryIndex, state.categories)
+                    val cat = MandalaLayout.cwIndexToCategory(s.categoryIndex, state.categories)
                     GradientButton(
                         text = "🍽️ ${cat?.name ?: ""} 메뉴 보기",
                         gradient = listOf(AccentOrange, AccentOrange.copy(alpha = 0.85f)),
@@ -175,9 +170,10 @@ private fun Mandala9x9Grid(
 
     // 현재 선택/하이라이트된 DB position 산출 (외곽 블록 강조용)
     val highlightedPosition: Int? = when {
-        spinState is SpinState.Selected -> CW_TO_POSITION.getOrNull(spinState.categoryIndex)
+        spinState is SpinState.Selected ->
+            MandalaLayout.CW_TO_POSITION.getOrNull(spinState.categoryIndex)
         spinState is SpinState.Spinning && highlightedCwIndex in 0..7 ->
-            CW_TO_POSITION[highlightedCwIndex]
+            MandalaLayout.CW_TO_POSITION[highlightedCwIndex]
         else -> null
     }
 
@@ -238,8 +234,3 @@ private fun BlockAt(
     }
 }
 
-private fun cwIndexToCategoryUi(cwIndex: Int, categories: List<Category>): Category? {
-    if (cwIndex !in 0..7) return null
-    val targetPos = CW_TO_POSITION[cwIndex]
-    return categories.firstOrNull { it.position == targetPos }
-}

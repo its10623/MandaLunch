@@ -2,6 +2,7 @@ package com.example.mandalunch.presentation.viewmodel
 
 import com.example.mandalunch.domain.model.RecommendHistory
 import com.example.mandalunch.domain.usecase.DeleteAllHistoryUseCase
+import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.domain.usecase.GetHistoryUseCase
 import io.mockk.every
 import io.mockk.mockk
@@ -27,9 +28,11 @@ class HistoryGroupByDateTest {
 
     private fun createViewModel(): HistoryViewModel {
         val getHistoryUseCase: GetHistoryUseCase = mockk(relaxed = true)
+        val getCategoriesUseCase: GetCategoriesUseCase = mockk(relaxed = true)
         val deleteAllHistoryUseCase: DeleteAllHistoryUseCase = mockk(relaxed = true)
         every { getHistoryUseCase() } returns flowOf(emptyList())
-        return HistoryViewModel(getHistoryUseCase, deleteAllHistoryUseCase)
+        every { getCategoriesUseCase() } returns flowOf(emptyList())
+        return HistoryViewModel(getHistoryUseCase, getCategoriesUseCase, deleteAllHistoryUseCase)
     }
 
     private fun epoch(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long =
@@ -47,7 +50,7 @@ class HistoryGroupByDateTest {
     @Test
     fun groupByDate_emptyInput_returnsEmptyList() {
         val vm = createViewModel()
-        val result = vm.groupByDate(emptyList(), now, zone)
+        val result = vm.groupByDate(emptyList(), now = now, zone = zone)
         assertEquals(emptyList(), result)
     }
 
@@ -56,7 +59,7 @@ class HistoryGroupByDateTest {
         val vm = createViewModel()
         val histories = listOf(history(epoch(2026, 6, 5, 12, 0)))
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals(DateGroup.TODAY, result[0].group)
@@ -69,7 +72,7 @@ class HistoryGroupByDateTest {
         val vm = createViewModel()
         val histories = listOf(history(epoch(2026, 6, 4, 9, 0)))
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals(DateGroup.YESTERDAY, result[0].group)
@@ -82,7 +85,7 @@ class HistoryGroupByDateTest {
         val vm = createViewModel()
         val histories = listOf(history(epoch(2026, 6, 1, 18, 0)))
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals(DateGroup.THIS_WEEK, result[0].group)
@@ -94,7 +97,7 @@ class HistoryGroupByDateTest {
         val vm = createViewModel()
         val histories = listOf(history(epoch(2026, 5, 20, 12, 0)))
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals(DateGroup.EARLIER, result[0].group)
@@ -110,7 +113,7 @@ class HistoryGroupByDateTest {
             history(epoch(2026, 6, 5, 12, 0), id = 1)     // TODAY
         )
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(
             listOf(DateGroup.TODAY, DateGroup.YESTERDAY, DateGroup.THIS_WEEK, DateGroup.EARLIER),
@@ -127,7 +130,7 @@ class HistoryGroupByDateTest {
             history(epoch(2026, 6, 5, 11, 0), id = 3, menu = "C")
         )
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals(DateGroup.TODAY, result[0].group)
@@ -142,7 +145,7 @@ class HistoryGroupByDateTest {
         val vm = createViewModel()
         val histories = listOf(history(epoch(2026, 6, 5, 14, 5)))
 
-        val result = vm.groupByDate(histories, now, zone)
+        val result = vm.groupByDate(histories, now = now, zone = zone)
 
         assertEquals(1, result.size)
         assertEquals("14:05", result[0].items[0].timeLabel)
@@ -165,7 +168,7 @@ class HistoryGroupByDateTest {
             history(epoch(2026, 6, 6, 12, 0), id = 3)    // 토요일 → EARLIER
         )
 
-        val result = vm.groupByDate(histories, mondayNow, zone)
+        val result = vm.groupByDate(histories, now = mondayNow, zone = zone)
 
         val groups = result.map { it.group }
         assertTrue(groups.contains(DateGroup.TODAY), "TODAY section must exist")

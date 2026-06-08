@@ -4,9 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
-import com.example.mandalunch.domain.repository.MenuRepository
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
+import com.example.mandalunch.domain.usecase.MarkAsRecommendedUseCase
 import com.example.mandalunch.domain.usecase.SaveHistoryUseCase
 import com.example.mandalunch.domain.usecase.ToggleFavoriteUseCase
 import com.example.mandalunch.presentation.navigation.Routes
@@ -33,7 +33,7 @@ class MenuSelectViewModelTest {
     private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase = mockk(relaxed = true)
     private val saveHistoryUseCase: SaveHistoryUseCase = mockk(relaxed = true)
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase = mockk(relaxed = true)
-    private val menuRepository: MenuRepository = mockk(relaxed = true)
+    private val markAsRecommendedUseCase: MarkAsRecommendedUseCase = mockk(relaxed = true)
 
     private val categoryOne = Category(id = 1, name = "한식", emoji = "🍚", position = 0)
     private val categories = listOf(categoryOne)
@@ -53,7 +53,7 @@ class MenuSelectViewModelTest {
         getBoardMenusByCategoryUseCase,
         saveHistoryUseCase,
         toggleFavoriteUseCase,
-        menuRepository
+        markAsRecommendedUseCase
     )
 
     @Test
@@ -186,7 +186,7 @@ class MenuSelectViewModelTest {
         }
 
         coVerify(exactly = 1) {
-            menuRepository.updateLastRecommended(selectedMenu.id, match { it > 0L })
+            markAsRecommendedUseCase(selectedMenu.id, match { it > 0L })
         }
         coVerify(exactly = 1) {
             saveHistoryUseCase(
