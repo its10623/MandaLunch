@@ -1,5 +1,6 @@
 package com.example.mandalunch.data.remote
 
+import com.example.mandalunch.data.remote.dto.KakaoAddressResponseDto
 import com.example.mandalunch.data.remote.dto.KakaoSearchResponseDto
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -22,4 +23,11 @@ interface KakaoLocalApiService {
         @Query("query") query: String,
         @Query("size") size: Int = 1
     ): KakaoSearchResponseDto
+
+    // 전체 주소 텍스트로 좌표 검색 (키워드 검색 폴백용)
+    @GET("v2/local/search/address.json")
+    suspend fun searchAddress(
+        @Query("query") query: String,
+        @Query("size") size: Int = 1
+    ): KakaoAddressResponseDto
 }

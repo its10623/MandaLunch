@@ -35,6 +35,16 @@ data class KakaoMetaDto(
     @SerializedName("is_end") val isEnd: Boolean
 )
 
+// 주소 검색 API 응답 DTO (v2/local/search/address.json)
+data class KakaoAddressResponseDto(
+    @SerializedName("documents") val documents: List<KakaoAddressDocumentDto>
+)
+
+data class KakaoAddressDocumentDto(
+    @SerializedName("x") val x: String,  // 경도(longitude)
+    @SerializedName("y") val y: String   // 위도(latitude)
+)
+
 /**
  * Kakao Place DTO → Domain Restaurant 매핑.
  */
