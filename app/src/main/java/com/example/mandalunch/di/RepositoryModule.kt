@@ -5,11 +5,13 @@ import com.example.mandalunch.data.repository.LocationRepositoryImpl
 import com.example.mandalunch.data.repository.MenuRepositoryImpl
 import com.example.mandalunch.data.repository.RecommendHistoryRepositoryImpl
 import com.example.mandalunch.data.repository.RestaurantRepositoryImpl
+import com.example.mandalunch.data.repository.SavedLocationRepositoryImpl
 import com.example.mandalunch.domain.repository.CategoryRepository
 import com.example.mandalunch.domain.repository.LocationRepository
 import com.example.mandalunch.domain.repository.MenuRepository
 import com.example.mandalunch.domain.repository.RecommendHistoryRepository
 import com.example.mandalunch.domain.repository.RestaurantRepository
+import com.example.mandalunch.domain.repository.SavedLocationRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -49,4 +51,10 @@ abstract class RepositoryModule {
     abstract fun bindRestaurantRepository(
         impl: RestaurantRepositoryImpl
     ): RestaurantRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSavedLocationRepository(
+        impl: SavedLocationRepositoryImpl
+    ): SavedLocationRepository
 }

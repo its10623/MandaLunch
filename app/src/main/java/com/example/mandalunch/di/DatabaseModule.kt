@@ -5,6 +5,7 @@ import com.example.mandalunch.data.local.room.MandaLunchDatabase
 import com.example.mandalunch.data.local.room.dao.CategoryDao
 import com.example.mandalunch.data.local.room.dao.MenuDao
 import com.example.mandalunch.data.local.room.dao.RecommendHistoryDao
+import com.example.mandalunch.data.local.room.dao.SavedLocationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,4 +31,8 @@ object DatabaseModule {
     @Provides
     fun provideRecommendHistoryDao(db: MandaLunchDatabase): RecommendHistoryDao =
         db.recommendHistoryDao()
+
+    @Provides
+    fun provideSavedLocationDao(db: MandaLunchDatabase): SavedLocationDao =
+        db.savedLocationDao()
 }

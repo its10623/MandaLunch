@@ -6,8 +6,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mandalunch.domain.model.Coordinates
 import com.example.mandalunch.domain.model.Restaurant
+import com.example.mandalunch.domain.model.SavedLocation
 import com.example.mandalunch.domain.model.ShareMessage
+import com.example.mandalunch.domain.usecase.DeleteSavedLocationUseCase
 import com.example.mandalunch.domain.usecase.GetCurrentLocationUseCase
+import com.example.mandalunch.domain.usecase.GetSavedLocationsUseCase
+import com.example.mandalunch.domain.usecase.SaveLocationUseCase
 import com.example.mandalunch.domain.usecase.SearchLocationByNameUseCase
 import com.example.mandalunch.domain.usecase.SearchNearbyRestaurantsUseCase
 import com.example.mandalunch.presentation.navigation.Routes
@@ -16,9 +20,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,13 +42,16 @@ sealed class RestaurantUiState {
 sealed class RestaurantUiEvent {
     data class ShareToKakao(val message: ShareMessage) : RestaurantUiEvent()
     object RequestGpsPermission : RestaurantUiEvent()
+    data class ShowToast(val message: String) : RestaurantUiEvent()
 }
 
 data class LocationSearchUiState(
     val query: String = "",
     val label: String = "현재 위치",
     val isSearching: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // 현재 커스텀 검색에 사용 중인 좌표 (저장 버튼 활성화 여부 판단용)
+    val customCoords: Coordinates? = null
 )
 
 @HiltViewModel
@@ -50,7 +59,10 @@ class RestaurantViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getCurrentLocationUseCase: GetCurrentLocationUseCase,
     private val searchNearbyRestaurantsUseCase: SearchNearbyRestaurantsUseCase,
-    private val searchLocationByNameUseCase: SearchLocationByNameUseCase
+    private val searchLocationByNameUseCase: SearchLocationByNameUseCase,
+    private val getSavedLocationsUseCase: GetSavedLocationsUseCase,
+    private val saveLocationUseCase: SaveLocationUseCase,
+    private val deleteSavedLocationUseCase: DeleteSavedLocationUseCase
 ) : ViewModel() {
 
     private val rawMenuName: String =
@@ -69,6 +81,9 @@ class RestaurantViewModel @Inject constructor(
 
     private val _locationSearchState = MutableStateFlow(LocationSearchUiState())
     val locationSearchState: StateFlow<LocationSearchUiState> = _locationSearchState.asStateFlow()
+
+    val savedLocations: StateFlow<List<SavedLocation>> = getSavedLocationsUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onPermissionResult(granted: Boolean) {
         if (!granted) {
@@ -90,7 +105,7 @@ class RestaurantViewModel @Inject constructor(
             searchLocationByNameUseCase(query)
                 .onSuccess { coords ->
                     _locationSearchState.update {
-                        it.copy(isSearching = false, label = query, error = null)
+                        it.copy(isSearching = false, label = query, error = null, customCoords = coords)
                     }
                     loadRestaurantsWithCoords(coords)
                 }
@@ -106,6 +121,36 @@ class RestaurantViewModel @Inject constructor(
         _locationSearchState.value = LocationSearchUiState()
         viewModelScope.launch {
             _events.emit(RestaurantUiEvent.RequestGpsPermission)
+        }
+    }
+
+    fun onSelectSavedLocation(location: SavedLocation) {
+        val coords = Coordinates(location.latitude, location.longitude)
+        _locationSearchState.value = LocationSearchUiState(
+            query = location.label,
+            label = location.label,
+            customCoords = coords
+        )
+        loadRestaurantsWithCoords(coords)
+    }
+
+    fun onSaveCurrentLocation() {
+        val state = _locationSearchState.value
+        val coords = state.customCoords ?: return
+        viewModelScope.launch {
+            saveLocationUseCase(state.label, coords)
+                .onSuccess {
+                    _events.emit(RestaurantUiEvent.ShowToast("\"${state.label}\" 저장됐습니다"))
+                }
+                .onFailure { e ->
+                    _events.emit(RestaurantUiEvent.ShowToast(e.message ?: "저장에 실패했습니다"))
+                }
+        }
+    }
+
+    fun onDeleteSavedLocation(id: Int) {
+        viewModelScope.launch {
+            deleteSavedLocationUseCase(id)
         }
     }
 

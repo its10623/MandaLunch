@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -58,7 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
 import com.example.mandalunch.domain.model.Restaurant
+import com.example.mandalunch.domain.model.SavedLocation
 import com.example.mandalunch.presentation.share.KakaoShareLauncher
 import com.example.mandalunch.presentation.ui.component.SpinButton
 import com.example.mandalunch.presentation.ui.theme.AccentBlue
@@ -87,6 +91,7 @@ fun RestaurantScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val locationState by viewModel.locationSearchState.collectAsStateWithLifecycle()
+    val savedLocations by viewModel.savedLocations.collectAsStateWithLifecycle()
     val menuName = viewModel.menuNameForDisplay
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -113,6 +118,8 @@ fun RestaurantScreen(
             when (ev) {
                 is RestaurantUiEvent.ShareToKakao ->
                     KakaoShareLauncher.share(context.findActivity(), ev.message)
+                is RestaurantUiEvent.ShowToast ->
+                    Toast.makeText(context, ev.message, Toast.LENGTH_SHORT).show()
                 RestaurantUiEvent.RequestGpsPermission ->
                     permissionLauncher.launch(
                         arrayOf(
@@ -173,12 +180,16 @@ fun RestaurantScreen(
                 .background(BackgroundDark)
                 .padding(innerPadding)
         ) {
-            // 위치 검색 바
+            // 위치 검색 바 + 저장된 위치 칩
             LocationSearchBar(
                 locationState = locationState,
+                savedLocations = savedLocations,
                 onQueryChange = viewModel::onLocationQueryChange,
                 onSearch = viewModel::onSearchByLocation,
-                onUseCurrentLocation = viewModel::onUseCurrentLocation
+                onUseCurrentLocation = viewModel::onUseCurrentLocation,
+                onSaveLocation = viewModel::onSaveCurrentLocation,
+                onSelectSaved = viewModel::onSelectSavedLocation,
+                onDeleteSaved = viewModel::onDeleteSavedLocation
             )
 
             // 메인 콘텐츠
@@ -236,11 +247,16 @@ fun RestaurantScreen(
 @Composable
 private fun LocationSearchBar(
     locationState: LocationSearchUiState,
+    savedLocations: List<SavedLocation>,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    onUseCurrentLocation: () -> Unit
+    onUseCurrentLocation: () -> Unit,
+    onSaveLocation: () -> Unit,
+    onSelectSaved: (SavedLocation) -> Unit,
+    onDeleteSaved: (Int) -> Unit
 ) {
-    val isGpsMode = locationState.label == "현재 위치" && locationState.query.isBlank()
+    val isGpsMode = locationState.customCoords == null
+    val canSave = !isGpsMode && locationState.customCoords != null
 
     Column(
         modifier = Modifier
@@ -256,9 +272,7 @@ private fun LocationSearchBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (isGpsMode) AccentOrange.copy(alpha = 0.15f) else Surface2Dark
-                    )
+                    .background(if (isGpsMode) AccentOrange.copy(alpha = 0.15f) else Surface2Dark)
                     .border(
                         1.dp,
                         if (isGpsMode) AccentOrange.copy(alpha = 0.6f) else TextDim.copy(alpha = 0.3f),
@@ -268,10 +282,7 @@ private fun LocationSearchBar(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "📍",
-                    style = TextStyle(fontSize = 15.sp)
-                )
+                Text(text = "📍", style = TextStyle(fontSize = 15.sp))
             }
 
             // 위치명 입력 필드
@@ -291,9 +302,7 @@ private fun LocationSearchBar(
                 trailingIcon = {
                     if (locationState.isSearching) {
                         CircularProgressIndicator(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .padding(end = 4.dp),
+                            modifier = Modifier.size(20.dp).padding(end = 4.dp),
                             strokeWidth = 2.dp,
                             color = AccentOrange
                         )
@@ -319,9 +328,23 @@ private fun LocationSearchBar(
                 ),
                 modifier = Modifier.weight(1f)
             )
+
+            // 저장 버튼 (커스텀 위치 검색 성공 시에만 표시)
+            if (canSave) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AccentOrange.copy(alpha = 0.15f))
+                        .clickable(onClick = onSaveLocation)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "🔖", style = TextStyle(fontSize = 15.sp))
+                }
+            }
         }
 
-        // 위치 검색 에러
+        // 에러 메시지
         if (locationState.error != null) {
             Text(
                 text = locationState.error,
@@ -331,7 +354,7 @@ private fun LocationSearchBar(
             )
         }
 
-        // 현재 검색 기준 위치 표시
+        // 현재 검색 기준 위치
         val labelText = if (isGpsMode) "현재 위치 기준" else "\"${locationState.label}\" 기준"
         Text(
             text = labelText,
@@ -339,6 +362,74 @@ private fun LocationSearchBar(
             style = TextStyle(fontSize = 11.sp),
             modifier = Modifier.padding(top = 4.dp, start = 2.dp)
         )
+
+        // 저장된 위치 칩 목록
+        if (savedLocations.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                savedLocations.forEach { loc ->
+                    SavedLocationChip(
+                        label = loc.label,
+                        isActive = locationState.label == loc.label && !isGpsMode,
+                        onClick = { onSelectSaved(loc) },
+                        onDelete = { onDeleteSaved(loc.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedLocationChip(
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (isActive) AccentOrange.copy(alpha = 0.2f) else Surface2Dark)
+            .border(
+                1.dp,
+                if (isActive) AccentOrange.copy(alpha = 0.7f) else TextDim.copy(alpha = 0.25f),
+                RoundedCornerShape(20.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "🔖",
+            style = TextStyle(fontSize = 10.sp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = label,
+            color = if (isActive) AccentOrange else TextPrimary,
+            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        )
+        Spacer(Modifier.width(2.dp))
+        // X 삭제 버튼
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onDelete),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "✕",
+                color = TextDim,
+                style = TextStyle(fontSize = 10.sp)
+            )
+        }
     }
 }
 

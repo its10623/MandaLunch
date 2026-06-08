@@ -12,10 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        // 1) 컬럼 추가 (기존 행 → isOnBoard=1)
         db.execSQL("ALTER TABLE menus ADD COLUMN isOnBoard INTEGER NOT NULL DEFAULT 1")
-
-        // 2) 풀 메뉴 INSERT (Migration.migrate는 자동 트랜잭션 안에서 실행됨)
         MenuSeedData.POOL_MENUS_BY_CATEGORY.forEach { (categoryId, names) ->
             names.forEach { name ->
                 db.execSQL(
@@ -25,5 +22,21 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
                 )
             }
         }
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS saved_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                label TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                createdAt INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
     }
 }

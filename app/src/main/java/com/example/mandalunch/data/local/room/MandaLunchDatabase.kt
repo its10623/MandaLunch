@@ -8,23 +8,27 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.mandalunch.data.local.room.dao.CategoryDao
 import com.example.mandalunch.data.local.room.dao.MenuDao
 import com.example.mandalunch.data.local.room.dao.RecommendHistoryDao
+import com.example.mandalunch.data.local.room.dao.SavedLocationDao
 import com.example.mandalunch.data.local.room.entity.CategoryEntity
 import com.example.mandalunch.data.local.room.entity.MenuEntity
 import com.example.mandalunch.data.local.room.entity.RecommendHistoryEntity
+import com.example.mandalunch.data.local.room.entity.SavedLocationEntity
 
 @Database(
     entities = [
         CategoryEntity::class,
         MenuEntity::class,
-        RecommendHistoryEntity::class
+        RecommendHistoryEntity::class,
+        SavedLocationEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class MandaLunchDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun menuDao(): MenuDao
     abstract fun recommendHistoryDao(): RecommendHistoryDao
+    abstract fun savedLocationDao(): SavedLocationDao
 
     companion object {
         private const val DB_NAME = "mandalunch.db"
@@ -35,7 +39,7 @@ abstract class MandaLunchDatabase : RoomDatabase() {
                 MandaLunchDatabase::class.java,
                 DB_NAME
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
