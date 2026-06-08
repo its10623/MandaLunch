@@ -18,7 +18,7 @@ import com.example.mandalunch.data.local.room.entity.RecommendHistoryEntity
         MenuEntity::class,
         RecommendHistoryEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MandaLunchDatabase : RoomDatabase() {
@@ -35,13 +35,13 @@ abstract class MandaLunchDatabase : RoomDatabase() {
                 MandaLunchDatabase::class.java,
                 DB_NAME
             )
+                .addMigrations(MIGRATION_1_2)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
                         seedData(db)
                     }
                 })
-                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
         }
 
@@ -65,22 +65,24 @@ abstract class MandaLunchDatabase : RoomDatabase() {
                 )
             }
 
-            // menus: 카테고리당 8개 = 총 64개 — PRD v2 §5
-            val menusByCategory = mapOf(
-                1 to listOf("된장찌개", "김치찌개", "비빔밥", "삼겹살", "순두부찌개", "불고기", "갈비탕", "냉면"),
-                2 to listOf("짜장면", "짬뽕", "탕수육", "마파두부", "볶음밥", "깐풍기", "유산슬", "딤섬"),
-                3 to listOf("초밥", "라멘", "돈카츠", "우동", "텐동", "오야코동", "야키토리", "타코야키"),
-                4 to listOf("파스타", "스테이크", "리조또", "피자", "샌드위치", "크림수프", "뇨키", "샐러드"),
-                5 to listOf("쌀국수", "팟타이", "나시고렝", "분짜", "커리", "반미", "똠얌꿍", "마라탕"),
-                6 to listOf("떡볶이", "순대", "김밥", "튀김", "어묵", "라볶이", "치즈볼", "핫도그"),
-                7 to listOf("햄버거", "치킨", "피자", "샌드위치", "버거킹", "맥도날드", "롯데리아", "KFC"),
-                8 to listOf("닭가슴살", "그린샐러드", "아보카도볼", "두부샐러드", "현미밥", "채소비빔밥", "연어포케", "오트밀")
-            )
-            menusByCategory.forEach { (categoryId, names) ->
+            // 보드 메뉴(카테고리당 8개): isOnBoard=1
+            MenuSeedData.BOARD_MENUS_BY_CATEGORY.forEach { (categoryId, names) ->
                 names.forEach { name ->
                     db.execSQL(
-                        "INSERT INTO menus (name, categoryId, isFavorite, lastRecommendedAt) VALUES (?, ?, ?, NULL)",
-                        arrayOf<Any>(name, categoryId, 0)
+                        "INSERT INTO menus (name, categoryId, isFavorite, lastRecommendedAt, isOnBoard) " +
+                            "VALUES (?, ?, 0, NULL, 1)",
+                        arrayOf<Any>(name, categoryId)
+                    )
+                }
+            }
+
+            // 풀 메뉴(카테고리당 22개): isOnBoard=0
+            MenuSeedData.POOL_MENUS_BY_CATEGORY.forEach { (categoryId, names) ->
+                names.forEach { name ->
+                    db.execSQL(
+                        "INSERT INTO menus (name, categoryId, isFavorite, lastRecommendedAt, isOnBoard) " +
+                            "VALUES (?, ?, 0, NULL, 0)",
+                        arrayOf<Any>(name, categoryId)
                     )
                 }
             }
