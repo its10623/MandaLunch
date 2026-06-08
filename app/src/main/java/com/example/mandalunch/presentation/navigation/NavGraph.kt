@@ -10,6 +10,7 @@ import androidx.navigation.navArgument
 import com.example.mandalunch.presentation.ui.screen.FavoriteScreen
 import com.example.mandalunch.presentation.ui.screen.HistoryScreen
 import com.example.mandalunch.presentation.ui.screen.MandalartScreen
+import com.example.mandalunch.presentation.ui.screen.MenuEditScreen
 import com.example.mandalunch.presentation.ui.screen.MenuSelectScreen
 import com.example.mandalunch.presentation.ui.screen.RestaurantScreen
 import com.example.mandalunch.presentation.ui.screen.ResultScreen
@@ -17,6 +18,7 @@ import com.example.mandalunch.presentation.ui.screen.ResultScreen
 object Routes {
     const val MANDALART = "mandalart"
     const val MENU_SELECT = "menu_select"
+    const val MENU_EDIT = "menu_edit"
     const val RESULT = "result"
     const val RESTAURANT = "restaurant"
     const val HISTORY = "history"
@@ -27,6 +29,7 @@ object Routes {
     const val ARG_RESTAURANT_CATEGORY = "restaurantCategory"
 
     fun menuSelect(categoryId: Int): String = "$MENU_SELECT/$categoryId"
+    fun menuEdit(categoryId: Int): String = "$MENU_EDIT/$categoryId"
     fun result(categoryId: Int, menuName: String): String =
         "$RESULT/$categoryId/${Uri.encode(menuName)}"
     fun restaurant(menuName: String, categoryName: String): String =
@@ -46,12 +49,25 @@ fun NavGraph() {
                 onNavigateToMenuSelect = { categoryId ->
                     navController.navigate(Routes.menuSelect(categoryId))
                 },
+                onNavigateToMenuEdit = { categoryId ->
+                    navController.navigate(Routes.menuEdit(categoryId))
+                },
                 onNavigateToHistory = {
                     navController.navigate(Routes.HISTORY)
                 },
                 onNavigateToFavorites = {
                     navController.navigate(Routes.FAVORITES)
                 }
+            )
+        }
+        composable(
+            route = "${Routes.MENU_EDIT}/{${Routes.ARG_CATEGORY_ID}}",
+            arguments = listOf(
+                navArgument(Routes.ARG_CATEGORY_ID) { type = NavType.IntType }
+            )
+        ) {
+            MenuEditScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         composable(Routes.HISTORY) {

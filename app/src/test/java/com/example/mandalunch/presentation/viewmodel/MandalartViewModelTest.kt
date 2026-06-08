@@ -4,7 +4,7 @@ import app.cash.turbine.test
 import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
-import com.example.mandalunch.domain.usecase.GetMenusByCategoryUseCase
+import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.testutil.MainDispatcherRule
 import io.mockk.every
 import io.mockk.mockk
@@ -25,7 +25,7 @@ class MandalartViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val getCategoriesUseCase: GetCategoriesUseCase = mockk(relaxed = true)
-    private val getMenusByCategoryUseCase: GetMenusByCategoryUseCase = mockk(relaxed = true)
+    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase = mockk(relaxed = true)
 
     // CW_TO_POSITION = [0,1,2,4,7,6,5,3]
     // CW index 0..7 → position 0..7 매핑
@@ -44,13 +44,13 @@ class MandalartViewModelTest {
         (1..8).map { Menu(id = categoryId * 100 + it, name = "m$it", categoryId = categoryId) }
 
     private fun createViewModel(): MandalartViewModel =
-        MandalartViewModel(getCategoriesUseCase, getMenusByCategoryUseCase)
+        MandalartViewModel(getCategoriesUseCase, getBoardMenusByCategoryUseCase)
 
     @Test
     fun init_loadsAllCategoriesAndMenusMap() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -73,14 +73,14 @@ class MandalartViewModelTest {
 
         assertTrue(viewModel.uiState.value.categories.isEmpty())
         assertTrue(viewModel.uiState.value.menusByCategoryId.isEmpty())
-        verify(exactly = 0) { getMenusByCategoryUseCase(any()) }
+        verify(exactly = 0) { getBoardMenusByCategoryUseCase(any()) }
     }
 
     @Test
     fun onSpinClick_normal_endsInSelectedState() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -103,7 +103,7 @@ class MandalartViewModelTest {
         val few = categories8.take(3)
         every { getCategoriesUseCase() } returns flowOf(few)
         few.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -119,7 +119,7 @@ class MandalartViewModelTest {
     fun onSpinClick_duplicateCall_secondCallIgnored() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -142,7 +142,7 @@ class MandalartViewModelTest {
     fun onGoToMenuClick_selectedState_emitsWithMappedCategoryId() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -169,7 +169,7 @@ class MandalartViewModelTest {
     fun onGoToMenuClick_idleState_noEvent() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()
@@ -187,7 +187,7 @@ class MandalartViewModelTest {
     fun resetSpin_returnsToIdle() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories8)
         categories8.forEach { cat ->
-            every { getMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
+            every { getBoardMenusByCategoryUseCase(cat.id) } returns flowOf(menuListFor(cat.id))
         }
 
         val viewModel = createViewModel()

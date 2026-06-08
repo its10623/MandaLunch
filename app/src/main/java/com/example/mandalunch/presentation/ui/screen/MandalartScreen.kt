@@ -54,6 +54,7 @@ private val CW_TO_POSITION = intArrayOf(0, 1, 2, 4, 7, 6, 5, 3)
 @Composable
 fun MandalartScreen(
     onNavigateToMenuSelect: (Int) -> Unit,
+    onNavigateToMenuEdit: (Int) -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToFavorites: () -> Unit,
     viewModel: MandalartViewModel = hiltViewModel()
@@ -68,6 +69,7 @@ fun MandalartScreen(
         viewModel.events.collectLatest { ev ->
             when (ev) {
                 is MandalartUiEvent.NavigateToMenuSelect -> onNavigateToMenuSelect(ev.categoryId)
+                is MandalartUiEvent.NavigateToMenuEdit -> onNavigateToMenuEdit(ev.categoryId)
             }
         }
     }
@@ -128,7 +130,8 @@ fun MandalartScreen(
                 menusByCategoryId = state.menusByCategoryId,
                 spinState = state.spinState,
                 highlightedCwIndex = state.highlightedIndex,
-                onSpinClick = viewModel::onSpinClick
+                onSpinClick = viewModel::onSpinClick,
+                onCategoryClick = viewModel::onCategoryClick
             )
 
             Spacer(Modifier.height(32.dp))
@@ -164,7 +167,8 @@ private fun Mandala9x9Grid(
     menusByCategoryId: Map<Int, List<Menu>>,
     spinState: SpinState,
     highlightedCwIndex: Int,
-    onSpinClick: () -> Unit
+    onSpinClick: () -> Unit,
+    onCategoryClick: (Category) -> Unit
 ) {
     // position 별 카테고리 매핑
     val byPos = categories.associateBy { it.position }
@@ -180,26 +184,26 @@ private fun Mandala9x9Grid(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // 블록 행 0: position 0, 1, 2
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            BlockAt(byPos[0], menusByCategoryId, highlightedPosition)
-            BlockAt(byPos[1], menusByCategoryId, highlightedPosition)
-            BlockAt(byPos[2], menusByCategoryId, highlightedPosition)
+            BlockAt(byPos[0], menusByCategoryId, highlightedPosition, onCategoryClick)
+            BlockAt(byPos[1], menusByCategoryId, highlightedPosition, onCategoryClick)
+            BlockAt(byPos[2], menusByCategoryId, highlightedPosition, onCategoryClick)
         }
         // 블록 행 1: position 3, SPIN(center), 4
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            BlockAt(byPos[3], menusByCategoryId, highlightedPosition)
+            BlockAt(byPos[3], menusByCategoryId, highlightedPosition, onCategoryClick)
             SpinBlock(
                 categories = categories,
                 spinState = spinState,
                 highlightedCwIndex = highlightedCwIndex,
                 onSpinClick = onSpinClick
             )
-            BlockAt(byPos[4], menusByCategoryId, highlightedPosition)
+            BlockAt(byPos[4], menusByCategoryId, highlightedPosition, onCategoryClick)
         }
         // 블록 행 2: position 5, 6, 7
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            BlockAt(byPos[5], menusByCategoryId, highlightedPosition)
-            BlockAt(byPos[6], menusByCategoryId, highlightedPosition)
-            BlockAt(byPos[7], menusByCategoryId, highlightedPosition)
+            BlockAt(byPos[5], menusByCategoryId, highlightedPosition, onCategoryClick)
+            BlockAt(byPos[6], menusByCategoryId, highlightedPosition, onCategoryClick)
+            BlockAt(byPos[7], menusByCategoryId, highlightedPosition, onCategoryClick)
         }
     }
 }
@@ -208,7 +212,8 @@ private fun Mandala9x9Grid(
 private fun BlockAt(
     category: Category?,
     menusByCategoryId: Map<Int, List<Menu>>,
-    highlightedPosition: Int?
+    highlightedPosition: Int?,
+    onCategoryClick: (Category) -> Unit
 ) {
     if (category == null) {
         // 데이터 로딩 전 placeholder
@@ -227,7 +232,7 @@ private fun BlockAt(
         CategoryBlock(
             category = category,
             menuNames = menuNames,
-            onClick = { /* PRD v2: 외곽 블록 직접 탭 미지원 */ },
+            onClick = { onCategoryClick(category) },
             isHighlighted = highlightedPosition == category.position
         )
     }

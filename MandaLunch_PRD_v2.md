@@ -1,4 +1,4 @@
-# PRD: 점심메뉴 추천 앱 (MandaLunch) — v2.3
+# PRD: 점심메뉴 추천 앱 (MandaLunch) — v2.4
 
 > **변경 이력**
 > | 버전 | 날짜 | 주요 변경 |
@@ -9,6 +9,7 @@
 > | v2.2 | 2026-06-05 | 추천 히스토리 기능(HistoryScreen) 추가, GetHistoryUseCase/DeleteAllHistoryUseCase 신규, MandalartScreen 히스토리 진입 버튼, ResultViewModel 자동 저장(SavedStateHandle 중복 방지) |
 > | v2.3 | 2026-06-05 | 즐겨찾기 기능(FavoriteScreen) 추가, ToggleFavoriteUseCase/GetFavoritesUseCase/ClearAllFavoritesUseCase 신규, MenuSelectScreen 즐겨찾기 우선 정렬 + 하트 토글, MandalartScreen 헤더 ♥ 진입 버튼 |
 > | v2.3 (patch) | 2026-06-05 | 단위 테스트 77건 도입(UseCase 13 + ViewModel 41 + 유틸/groupByDate 23) + 테스트 가능성 리팩토링(`presentation/util/RestaurantDisplayFormatter.kt` 추출, `groupByDate` `@VisibleForTesting internal`, `randomProvider` 주입) — 동작 변경 없음 |
+> | v2.4 | 2026-06-05 | 카카오톡 공유 기능 추가 — Kakao SDK v2-share 2.20.6 + androidx.browser 1.8.0 도입, `ShareMessage` 도메인 모델 + `KakaoShareLauncher` 파사드 신규, ResultScreen TopEnd 오버레이 공유 버튼 + RestaurantScreen 카드별 공유 버튼, 네이티브 우선 + Custom Tabs 폴백 |
 
 ---
 
@@ -422,6 +423,9 @@ data class MenuItem(
 | 위치 (v2.1) | play-services-location 21.3.0 (`FusedLocationProviderClient`) |
 | 외부 API (v2.1) | Kakao Local API (`/v2/local/search/keyword.json`) |
 | API 키 보관 (v2.1) | `local.properties` → `BuildConfig.KAKAO_REST_API_KEY` |
+| 공유 SDK (v2.4) | Kakao SDK v2-share 2.20.6 (`com.kakao.sdk:v2-share`) |
+| 폴백 브라우저 (v2.4) | androidx.browser 1.8.0 (Custom Tabs) |
+| 네이티브 앱 키 (v2.4) | `local.properties` → `BuildConfig.KAKAO_NATIVE_APP_KEY` |
 
 ### 패키지 구조
 
@@ -434,6 +438,7 @@ com.example.mandalunch/
 ├── domain/
 │   ├── model/               Menu, Category, RecommendHistory
 │   │                        Coordinates (v2.1), Restaurant (v2.1)
+│   │                        ShareMessage (v2.4)
 │   ├── repository/          Repository Interface
 │   │                        LocationRepository (v2.1), RestaurantRepository (v2.1)
 │   └── usecase/             GetMenus, GetCategories, RecommendMenu, SaveHistory
@@ -450,7 +455,9 @@ com.example.mandalunch/
 │   │   │                    HistoryScreen (v2.2), FavoriteScreen (v2.3), RestaurantScreen (v2.1)
 │   │   ├── component/       GridCell, CategoryBlock, SpinBlock, SpinButton
 │   │   └── theme/           Color.kt, Typography.kt, Theme.kt
+│   ├── share/               KakaoShareLauncher (v2.4)  ← SDK 파사드 (네이티브 → Custom Tabs 폴백)
 │   ├── util/                RestaurantDisplayFormatter (v2.3-patch)  ← cleanCategory / formatDistanceWithTime (Compose 비의존, internal)
+│   │                        ContextExt (v2.4)  ← Context.findActivity() tailrec ext
 │   └── navigation/          NavGraph (Routes.FAVORITES v2.3, Routes.HISTORY v2.2, Routes.RESTAURANT v2.1)
 └── di/                      DatabaseModule, RepositoryModule
                              NetworkModule (v2.1), LocationModule (v2.1)
@@ -1162,3 +1169,190 @@ testImplementation(libs.kotlinx.coroutines.test)
 
 - `SearchNearbyRestaurantsUseCase.kt:13` KDoc 주석은 "반경 1000m"이나 실제 호출은 `radiusMeters = 3000`. 테스트는 3000을 정확히 검증하므로 회귀 안전성은 확보됨. 차기 정리 시 주석 수정 권고.
 - `groupByDate`의 월요일 경계 처리는 코드 동작(`!date.isBefore(mondayThisWeek)`)이 UX상 자연스러우며 테스트로 잠겨 있음. PRD에서 주 시작일 정책을 명문화할 여지는 남아 있으나 현재 동작이 정답.
+
+---
+
+## 17. v2.4 카카오톡 공유 기술 명세 (2026-06-05)
+
+### 17.1 도메인 모델
+
+```kotlin
+data class ShareMessage(
+    val title: String,
+    val description: String,
+    val imageUrl: String,
+    val linkWebUrl: String,
+    val linkMobileWebUrl: String,
+    val buttonTitle: String
+)
+```
+
+> **레이어 배치 결정:** `domain/model`. SDK 타입(`FeedTemplate`, `Content`, `Link`, `Button`)은 `presentation/share/KakaoShareLauncher` 내부에서만 참조하여 도메인 순수성을 유지한다.
+
+### 17.2 SDK 파사드 (Presentation 격리)
+
+```kotlin
+// presentation/share/KakaoShareLauncher.kt
+object KakaoShareLauncher {
+    fun share(activity: Activity, message: ShareMessage) {
+        val feed = FeedTemplate(
+            content = Content(
+                title = message.title,
+                description = message.description,
+                imageUrl = message.imageUrl,
+                link = Link(
+                    webUrl = message.linkWebUrl,
+                    mobileWebUrl = message.linkMobileWebUrl
+                )
+            ),
+            buttons = listOf(
+                Button(
+                    title = message.buttonTitle,
+                    link = Link(
+                        webUrl = message.linkWebUrl,
+                        mobileWebUrl = message.linkMobileWebUrl
+                    )
+                )
+            )
+        )
+        if (ShareClient.instance.isKakaoTalkSharingAvailable(activity)) {
+            ShareClient.instance.shareDefault(activity, feed) { sharingResult, _ ->
+                sharingResult?.intent?.let { activity.startActivity(it) }
+            }
+        } else {
+            val url = WebSharerClient.instance.makeDefaultUrl(feed)
+            CustomTabsIntent.Builder().build().launchUrl(activity, url)
+        }
+    }
+}
+```
+
+**핵심 원칙:**
+- ViewModel은 Android `Context`를 알지 못한다 — `UiEvent.ShareToKakao(message)` 발행만 담당.
+- Screen이 `LaunchedEffect`로 이벤트를 collect하여 `context.findActivity()?.let { KakaoShareLauncher.share(it, message) }` 호출.
+- `Context.findActivity()`는 `presentation/util/ContextExt.kt`의 `tailrec` 확장 함수로 ContextWrapper 체인을 안전하게 풀어낸다.
+
+### 17.3 UiEvent 확장
+
+**ResultViewModel:**
+```kotlin
+sealed class ResultUiEvent {
+    // 기존
+    object NavigateBack : ResultUiEvent()
+    data class NavigateToRestaurant(val menuName: String) : ResultUiEvent()
+    // v2.4 신규
+    data class ShareToKakao(val message: ShareMessage) : ResultUiEvent()
+}
+
+fun onShareClick() {
+    val s = _uiState.value
+    val message = ShareMessage(
+        title = "오늘의 점심 추천",
+        description = "${s.categoryEmoji} ${s.menuName} (${s.categoryName})\nMandaLunch로 추천받았어요!",
+        imageUrl = DEFAULT_OG_IMAGE_URL,
+        linkWebUrl = APP_LANDING_URL,
+        linkMobileWebUrl = APP_LANDING_URL,
+        buttonTitle = "앱에서 보기"
+    )
+    viewModelScope.launch { _events.emit(ResultUiEvent.ShareToKakao(message)) }
+}
+```
+
+**RestaurantViewModel:**
+```kotlin
+sealed class RestaurantUiEvent {
+    // v2.4 신규
+    data class ShareToKakao(val message: ShareMessage) : RestaurantUiEvent()
+}
+
+fun onShareRestaurant(restaurant: Restaurant) {
+    val message = ShareMessage(
+        title = restaurant.placeName,
+        description = "${restaurant.roadAddressName} · 도보 ${walkingMinutes(restaurant.distanceMeters)}분",
+        imageUrl = DEFAULT_OG_IMAGE_URL,
+        linkWebUrl = restaurant.placeUrl,
+        linkMobileWebUrl = restaurant.placeUrl,
+        buttonTitle = "카카오맵에서 보기"
+    )
+    viewModelScope.launch { _events.emit(RestaurantUiEvent.ShareToKakao(message)) }
+}
+```
+
+### 17.4 화면 통합
+
+| 화면 | 진입점 UI | 공유 내용 |
+|------|----------|-----------|
+| ResultScreen | 결과 카드 우상단 TopEnd 오버레이 `Icons.Filled.Share` IconButton | 메뉴명 + 카테고리 + 앱 브랜딩 1줄 |
+| RestaurantScreen | RestaurantCard 우측 액션 영역(전화 옆) 공유 IconButton | 음식점명 + 주소·도보분 + placeUrl(카카오맵 직링크) |
+
+> **카드 탭 vs 공유 버튼 분리:** RestaurantCard 자체 탭은 기존 `Intent.ACTION_VIEW` 카카오맵 핸드오프 유지, 공유는 별도 IconButton — 두 액션을 명확히 분리한다.
+
+### 17.5 의존성 및 설정
+
+**`gradle/libs.versions.toml`:**
+```toml
+kakaoShare = "2.20.6"
+androidxBrowser = "1.8.0"
+
+kakao-share = { module = "com.kakao.sdk:v2-share", version.ref = "kakaoShare" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "androidxBrowser" }
+```
+
+**`app/build.gradle.kts`:**
+```kotlin
+val kakaoNativeAppKey: String = localProperties.getProperty("kakao.native.app.key", "")
+
+defaultConfig {
+    buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoNativeAppKey\"")
+}
+
+dependencies {
+    implementation(libs.kakao.share)
+    implementation(libs.androidx.browser)
+}
+```
+
+**`MandaLunchApplication.kt`:**
+```kotlin
+@HiltAndroidApp
+class MandaLunchApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        KakaoSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+    }
+}
+```
+
+### 17.6 Manifest 권한 (v2.4 추가)
+
+```xml
+<!-- Android 11+ 패키지 가시성 — 카카오톡 설치 여부 조회 -->
+<queries>
+    <package android:name="com.kakao.talk" />
+</queries>
+```
+
+> 미선언 시 `ShareClient.isKakaoTalkSharingAvailable`가 항상 `false`를 반환하여 폴백 경로만 동작하게 된다.
+
+### 17.7 운영 체크리스트
+
+- **카카오 디벨로퍼스 설정:**
+  - 내 애플리케이션 생성 → 네이티브 앱 키 발급 → `local.properties`의 `kakao.native.app.key`에 기입.
+  - 플랫폼 → Android: 패키지명 `com.example.mandalunch`, 키 해시 등록.
+  - 플랫폼 → 웹: `linkWebUrl` 도메인 등록 (피드 메시지 필수 조건).
+- **이미지:** `imageUrl`은 외부 접근 가능한 절대 URL이어야 함. 자체 도메인/CDN 미보유 시 카카오 OG 기본 이미지 또는 임시 호스팅 사용.
+
+### 17.8 의사결정 요약
+
+| 결정 사항 | 선택 | 이유 |
+|----------|------|------|
+| `ShareMessage` 위치 | `domain/model` | SDK 타입 격리 — 도메인 순수성 |
+| SDK 파사드 위치 | `presentation/share/KakaoShareLauncher` | ViewModel은 Context 미보유 — 파사드가 Activity 수신 |
+| 폴백 전략 | 네이티브 → 웹 Custom Tabs | 카카오톡 미설치/비-카톡 채널 대응 |
+| 폴백 채널 선택 | `androidx.browser` Custom Tabs | 시스템 브라우저보다 UX 일관성 우수 |
+| 패키지 가시성 | `<queries>` 명시 | Android 11+ 정책 — 미선언 시 SDK가 카톡 미인식 |
+| 네이티브 앱 키 보관 | `local.properties` → BuildConfig | VCS 노출 차단 (REST 키와 일관) |
+| Activity 획득 | `Context.findActivity()` tailrec ext | ContextWrapper 체인 안전 처리 |
+| 공유 이벤트 패턴 | `UiEvent.ShareToKakao(message)` | 단방향 — ViewModel은 메시지 조립, Screen은 launcher 실행 |
+| ResultScreen UI | TopEnd 오버레이 IconButton | 결과 시각적 흐름 방해 최소화 |
+| RestaurantScreen UI | 카드별 IconButton | 음식점 단위 공유가 자연스러움 |

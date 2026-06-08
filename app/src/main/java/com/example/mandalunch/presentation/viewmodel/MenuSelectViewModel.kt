@@ -7,8 +7,8 @@ import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.model.RecommendHistory
 import com.example.mandalunch.domain.repository.MenuRepository
+import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
-import com.example.mandalunch.domain.usecase.GetMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.SaveHistoryUseCase
 import com.example.mandalunch.domain.usecase.ToggleFavoriteUseCase
 import com.example.mandalunch.presentation.navigation.Routes
@@ -40,7 +40,7 @@ sealed class MenuSelectUiEvent {
 class MenuSelectViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getCategoriesUseCase: GetCategoriesUseCase,
-    private val getMenusByCategoryUseCase: GetMenusByCategoryUseCase,
+    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase,
     private val saveHistoryUseCase: SaveHistoryUseCase,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val menuRepository: MenuRepository
@@ -76,7 +76,7 @@ class MenuSelectViewModel @Inject constructor(
 
     private fun observeMenus() {
         viewModelScope.launch {
-            getMenusByCategoryUseCase(categoryId).collect { list ->
+            getBoardMenusByCategoryUseCase(categoryId).collect { list ->
                 // 즐겨찾기 우선 정렬 후 id 오름차순 (안정 정렬)
                 val sorted = list.sortedWith(
                     compareByDescending<Menu> { it.isFavorite }.thenBy { it.id }

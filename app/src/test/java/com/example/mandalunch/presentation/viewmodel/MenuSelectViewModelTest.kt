@@ -6,7 +6,7 @@ import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.repository.MenuRepository
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
-import com.example.mandalunch.domain.usecase.GetMenusByCategoryUseCase
+import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.SaveHistoryUseCase
 import com.example.mandalunch.domain.usecase.ToggleFavoriteUseCase
 import com.example.mandalunch.presentation.navigation.Routes
@@ -30,7 +30,7 @@ class MenuSelectViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val getCategoriesUseCase: GetCategoriesUseCase = mockk(relaxed = true)
-    private val getMenusByCategoryUseCase: GetMenusByCategoryUseCase = mockk(relaxed = true)
+    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase = mockk(relaxed = true)
     private val saveHistoryUseCase: SaveHistoryUseCase = mockk(relaxed = true)
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase = mockk(relaxed = true)
     private val menuRepository: MenuRepository = mockk(relaxed = true)
@@ -50,7 +50,7 @@ class MenuSelectViewModelTest {
     ): MenuSelectViewModel = MenuSelectViewModel(
         savedStateHandle,
         getCategoriesUseCase,
-        getMenusByCategoryUseCase,
+        getBoardMenusByCategoryUseCase,
         saveHistoryUseCase,
         toggleFavoriteUseCase,
         menuRepository
@@ -59,7 +59,7 @@ class MenuSelectViewModelTest {
     @Test
     fun init_loadsCategoryAndMenus() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -78,7 +78,7 @@ class MenuSelectViewModelTest {
             Menu(id = 4, name = "m4", categoryId = 1, isFavorite = false)
         )
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(unsorted)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(unsorted)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -89,7 +89,7 @@ class MenuSelectViewModelTest {
     @Test
     fun onToggleFavorite_idleState_callsUseCase() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -104,7 +104,7 @@ class MenuSelectViewModelTest {
     @Test
     fun onToggleFavorite_spinningState_doesNotCallUseCase() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -126,7 +126,7 @@ class MenuSelectViewModelTest {
     @Test
     fun onSpinClick_normal_endsInSelectedState() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -150,7 +150,7 @@ class MenuSelectViewModelTest {
     fun onSpinClick_menusLessThan8_noStateChange() = runTest {
         val fewMenus = (1..3).map { Menu(id = it, name = "m$it", categoryId = 1) }
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(fewMenus)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(fewMenus)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -164,7 +164,7 @@ class MenuSelectViewModelTest {
     @Test
     fun onGoToResult_selectedState_savesAndEmits() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -202,7 +202,7 @@ class MenuSelectViewModelTest {
     @Test
     fun onGoToResult_idleState_noopAndNoEvent() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -220,7 +220,7 @@ class MenuSelectViewModelTest {
     @Test
     fun resetSpin_clearsToIdle() = runTest {
         every { getCategoriesUseCase() } returns flowOf(categories)
-        every { getMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
+        every { getBoardMenusByCategoryUseCase(1) } returns flowOf(menusForCat1)
 
         val viewModel = createViewModel()
         advanceUntilIdle()

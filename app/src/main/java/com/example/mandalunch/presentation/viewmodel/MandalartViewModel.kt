@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
+import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
-import com.example.mandalunch.domain.usecase.GetMenusByCategoryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,12 +31,13 @@ data class MandalartUiState(
 
 sealed class MandalartUiEvent {
     data class NavigateToMenuSelect(val categoryId: Int) : MandalartUiEvent()
+    data class NavigateToMenuEdit(val categoryId: Int) : MandalartUiEvent()
 }
 
 @HiltViewModel
 class MandalartViewModel @Inject constructor(
     private val getCategoriesUseCase: GetCategoriesUseCase,
-    private val getMenusByCategoryUseCase: GetMenusByCategoryUseCase
+    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase
 ) : ViewModel() {
 
     companion object {
@@ -69,7 +70,7 @@ class MandalartViewModel @Inject constructor(
                         flowOf(categories to emptyMap<Int, List<Menu>>())
                     } else {
                         val perCategoryFlows = categories.map { cat ->
-                            getMenusByCategoryUseCase(cat.id)
+                            getBoardMenusByCategoryUseCase(cat.id)
                         }
                         combine(perCategoryFlows) { menuLists ->
                             val map = mutableMapOf<Int, List<Menu>>()
@@ -89,12 +90,12 @@ class MandalartViewModel @Inject constructor(
     }
 
     /**
-     * PRD v2 플로우상 외곽 카테고리 블록 직접 탭은 지원하지 않음.
-     * SpinBlock의 SPIN 버튼을 통해서만 화면 2로 진입.
-     * 시그니처는 보존하되 동작 없음 (향후 확장 여지).
+     * 외곽 카테고리 블록 탭 → 메뉴 편집 화면으로 진입.
      */
     fun onCategoryClick(category: Category) {
-        // no-op
+        viewModelScope.launch {
+            _events.emit(MandalartUiEvent.NavigateToMenuEdit(category.id))
+        }
     }
 
     fun onSpinClick() {
