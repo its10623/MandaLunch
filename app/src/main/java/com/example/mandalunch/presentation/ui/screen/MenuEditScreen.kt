@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,9 +33,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -56,6 +61,7 @@ import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.viewmodel.MenuEditUiEvent
 import com.example.mandalunch.presentation.viewmodel.MenuEditViewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,6 +127,7 @@ fun MenuEditScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(SurfaceDark)
+                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 val canRandomize = (state.boardMenus.size + state.poolMenus.size) >= 8
@@ -175,8 +182,14 @@ private fun MenuEditContent(
     onUpdatePendingName: (String) -> Unit,
     onAddMenu: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -229,7 +242,12 @@ private fun MenuEditContent(
             AddMenuRow(
                 pendingMenuName = pendingMenuName,
                 onUpdatePendingName = onUpdatePendingName,
-                onAddMenu = onAddMenu
+                onAddMenu = onAddMenu,
+                onFocused = {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1)
+                    }
+                }
             )
         }
     }
@@ -348,7 +366,8 @@ private fun CircleActionButton(
 private fun AddMenuRow(
     pendingMenuName: String,
     onUpdatePendingName: (String) -> Unit,
-    onAddMenu: () -> Unit
+    onAddMenu: () -> Unit,
+    onFocused: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -375,7 +394,9 @@ private fun AddMenuRow(
                 focusedContainerColor = SurfaceDark,
                 unfocusedContainerColor = SurfaceDark
             ),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { if (it.isFocused) onFocused() }
         )
         Spacer(Modifier.padding(start = 8.dp))
         Box(
