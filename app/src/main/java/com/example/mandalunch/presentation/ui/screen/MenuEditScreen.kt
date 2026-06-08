@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,11 +34,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -61,7 +60,6 @@ import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.viewmodel.MenuEditUiEvent
 import com.example.mandalunch.presentation.viewmodel.MenuEditViewModel
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,7 +124,7 @@ fun MenuEditScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(SurfaceDark)
+                    .background(BackgroundDark)
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
@@ -183,73 +181,67 @@ private fun MenuEditContent(
     onAddMenu: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(
-        state = listState,
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .imePadding()
     ) {
-        // 보드 섹션 헤더
-        item(key = "header_board") {
-            SectionHeader(
-                title = "보드 메뉴",
-                count = "${boardMenus.size}/8",
-                highlightCount = boardMenus.size != 8
-            )
-        }
-        items(items = boardMenus, key = { "board_${it.id}" }) { menu ->
-            MenuEditRow(
-                menu = menu,
-                isOnBoard = true,
-                canAddToBoard = canAddToBoard,
-                onToggle = { onToggleBoardMenu(menu) },
-                onDelete = { /* 보드 메뉴는 삭제 노출 안 함 */ }
-            )
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item(key = "header_board") {
+                SectionHeader(
+                    title = "보드 메뉴",
+                    count = "${boardMenus.size}/8",
+                    highlightCount = boardMenus.size != 8
+                )
+            }
+            items(items = boardMenus, key = { "board_${it.id}" }) { menu ->
+                MenuEditRow(
+                    menu = menu,
+                    isOnBoard = true,
+                    canAddToBoard = canAddToBoard,
+                    onToggle = { onToggleBoardMenu(menu) },
+                    onDelete = { }
+                )
+            }
+
+            item(key = "divider") {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    color = TextDim.copy(alpha = 0.2f)
+                )
+            }
+
+            item(key = "header_pool") {
+                SectionHeader(
+                    title = "메뉴 풀",
+                    count = "${poolMenus.size}개",
+                    highlightCount = false
+                )
+            }
+            items(items = poolMenus, key = { "pool_${it.id}" }) { menu ->
+                MenuEditRow(
+                    menu = menu,
+                    isOnBoard = false,
+                    canAddToBoard = canAddToBoard,
+                    onToggle = { onToggleBoardMenu(menu) },
+                    onDelete = { onDeleteMenu(menu) }
+                )
+            }
         }
 
-        item(key = "divider") {
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
-                color = TextDim.copy(alpha = 0.2f)
-            )
-        }
-
-        // 풀 섹션 헤더
-        item(key = "header_pool") {
-            SectionHeader(
-                title = "메뉴 풀",
-                count = "${poolMenus.size}개",
-                highlightCount = false
-            )
-        }
-        items(items = poolMenus, key = { "pool_${it.id}" }) { menu ->
-            MenuEditRow(
-                menu = menu,
-                isOnBoard = false,
-                canAddToBoard = canAddToBoard,
-                onToggle = { onToggleBoardMenu(menu) },
-                onDelete = { onDeleteMenu(menu) }
-            )
-        }
-
-        // 메뉴 추가 인라인
-        item(key = "add_menu") {
-            Spacer(Modifier.height(12.dp))
-            AddMenuRow(
-                pendingMenuName = pendingMenuName,
-                onUpdatePendingName = onUpdatePendingName,
-                onAddMenu = onAddMenu,
-                onFocused = {
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1)
-                    }
-                }
-            )
-        }
+        HorizontalDivider(color = TextDim.copy(alpha = 0.15f))
+        AddMenuRow(
+            pendingMenuName = pendingMenuName,
+            onUpdatePendingName = onUpdatePendingName,
+            onAddMenu = onAddMenu,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
     }
 }
 
@@ -367,10 +359,10 @@ private fun AddMenuRow(
     pendingMenuName: String,
     onUpdatePendingName: (String) -> Unit,
     onAddMenu: () -> Unit,
-    onFocused: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
@@ -385,6 +377,7 @@ private fun AddMenuRow(
             },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (pendingMenuName.isNotBlank()) onAddMenu() }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = TextPrimary,
                 unfocusedTextColor = TextPrimary,
@@ -394,9 +387,7 @@ private fun AddMenuRow(
                 focusedContainerColor = SurfaceDark,
                 unfocusedContainerColor = SurfaceDark
             ),
-            modifier = Modifier
-                .weight(1f)
-                .onFocusChanged { if (it.isFocused) onFocused() }
+            modifier = Modifier.weight(1f)
         )
         Spacer(Modifier.padding(start = 8.dp))
         Box(
