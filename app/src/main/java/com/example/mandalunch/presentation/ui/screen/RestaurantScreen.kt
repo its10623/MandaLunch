@@ -25,13 +25,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -46,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +73,7 @@ import com.example.mandalunch.presentation.ui.theme.TextPrimary
 import com.example.mandalunch.presentation.util.cleanCategory
 import com.example.mandalunch.presentation.util.findActivity
 import com.example.mandalunch.presentation.util.formatDistanceWithTime
+import com.example.mandalunch.presentation.viewmodel.LocationSearchUiState
 import com.example.mandalunch.presentation.viewmodel.RestaurantUiEvent
 import com.example.mandalunch.presentation.viewmodel.RestaurantUiState
 import com.example.mandalunch.presentation.viewmodel.RestaurantViewModel
@@ -79,6 +86,7 @@ fun RestaurantScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val locationState by viewModel.locationSearchState.collectAsStateWithLifecycle()
     val menuName = viewModel.menuNameForDisplay
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -89,22 +97,29 @@ fun RestaurantScreen(
         viewModel.onPermissionResult(granted)
     }
 
+    // 초기 진입 시 GPS 권한 요청
     LaunchedEffect(Unit) {
-        if (state is RestaurantUiState.Loading) {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
             )
-        }
+        )
     }
 
+    // 이벤트 처리
     LaunchedEffect(Unit) {
         viewModel.events.collect { ev ->
             when (ev) {
                 is RestaurantUiEvent.ShareToKakao ->
                     KakaoShareLauncher.share(context.findActivity(), ev.message)
+                RestaurantUiEvent.RequestGpsPermission ->
+                    permissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
             }
         }
     }
@@ -152,58 +167,178 @@ fun RestaurantScreen(
             )
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(BackgroundDark)
                 .padding(innerPadding)
         ) {
-            when (val s = state) {
-                is RestaurantUiState.Loading -> LoadingContent()
-                is RestaurantUiState.PermissionDenied -> PermissionDeniedContent(
-                    onOpenSettings = {
-                        val intent = Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.fromParts("package", context.packageName, null)
-                        ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                        context.startActivity(intent)
-                    },
-                    onRetry = {
-                        viewModel.retry()
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                )
-                is RestaurantUiState.Error -> ErrorContent(
-                    message = s.message,
-                    onRetry = {
-                        viewModel.retry()
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                )
-                is RestaurantUiState.Success -> SuccessContent(
-                    restaurants = s.restaurants,
-                    onRestaurantClick = { url ->
-                        if (url.isNotBlank()) {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
+            // 위치 검색 바
+            LocationSearchBar(
+                locationState = locationState,
+                onQueryChange = viewModel::onLocationQueryChange,
+                onSearch = viewModel::onSearchByLocation,
+                onUseCurrentLocation = viewModel::onUseCurrentLocation
+            )
+
+            // 메인 콘텐츠
+            Box(modifier = Modifier.weight(1f)) {
+                when (val s = state) {
+                    is RestaurantUiState.Loading -> LoadingContent()
+                    is RestaurantUiState.PermissionDenied -> PermissionDeniedContent(
+                        onOpenSettings = {
+                            val intent = Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null)
+                            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                             context.startActivity(intent)
+                        },
+                        onRetry = {
+                            viewModel.retry()
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
                         }
-                    },
-                    onShareClick = viewModel::onShareRestaurant
-                )
+                    )
+                    is RestaurantUiState.Error -> ErrorContent(
+                        message = s.message,
+                        onRetry = {
+                            viewModel.retry()
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    )
+                    is RestaurantUiState.Success -> SuccessContent(
+                        restaurants = s.restaurants,
+                        onRestaurantClick = { url ->
+                            if (url.isNotBlank()) {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            }
+                        },
+                        onShareClick = viewModel::onShareRestaurant
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LocationSearchBar(
+    locationState: LocationSearchUiState,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onUseCurrentLocation: () -> Unit
+) {
+    val isGpsMode = locationState.label == "현재 위치" && locationState.query.isBlank()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SurfaceDark)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // GPS 현재위치 chip
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        if (isGpsMode) AccentOrange.copy(alpha = 0.15f) else Surface2Dark
+                    )
+                    .border(
+                        1.dp,
+                        if (isGpsMode) AccentOrange.copy(alpha = 0.6f) else TextDim.copy(alpha = 0.3f),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .clickable(onClick = onUseCurrentLocation)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "📍",
+                    style = TextStyle(fontSize = 15.sp)
+                )
+            }
+
+            // 위치명 입력 필드
+            OutlinedTextField(
+                value = locationState.query,
+                onValueChange = onQueryChange,
+                placeholder = {
+                    Text(
+                        text = "지역 검색 (예: 강남역, 판교)",
+                        color = TextDim,
+                        style = TextStyle(fontSize = 13.sp)
+                    )
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                trailingIcon = {
+                    if (locationState.isSearching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .padding(end = 4.dp),
+                            strokeWidth = 2.dp,
+                            color = AccentOrange
+                        )
+                    } else if (locationState.query.isNotBlank()) {
+                        IconButton(onClick = onSearch) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "위치 검색",
+                                tint = AccentOrange,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = AccentOrange,
+                    unfocusedBorderColor = TextDim.copy(alpha = 0.4f),
+                    cursorColor = AccentOrange,
+                    focusedContainerColor = SurfaceDark,
+                    unfocusedContainerColor = SurfaceDark
+                ),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // 위치 검색 에러
+        if (locationState.error != null) {
+            Text(
+                text = locationState.error,
+                color = AccentRed,
+                style = TextStyle(fontSize = 12.sp),
+                modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+            )
+        }
+
+        // 현재 검색 기준 위치 표시
+        val labelText = if (isGpsMode) "현재 위치 기준" else "\"${locationState.label}\" 기준"
+        Text(
+            text = labelText,
+            color = if (isGpsMode) TextDim.copy(alpha = 0.6f) else AccentOrange.copy(alpha = 0.8f),
+            style = TextStyle(fontSize = 11.sp),
+            modifier = Modifier.padding(top = 4.dp, start = 2.dp)
+        )
     }
 }
 
@@ -310,7 +445,6 @@ private fun SuccessContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        // 결과 수 헤더
         item {
             Text(
                 text = "총 ${restaurants.size}곳 발견",
@@ -357,7 +491,6 @@ private fun RestaurantCard(
             .padding(horizontal = 4.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // 순위 번호
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -374,9 +507,7 @@ private fun RestaurantCard(
 
         Spacer(Modifier.width(12.dp))
 
-        // 메인 콘텐츠
         Column(modifier = Modifier.weight(1f)) {
-            // 음식점명
             Text(
                 text = restaurant.placeName,
                 color = TextPrimary,
@@ -385,7 +516,6 @@ private fun RestaurantCard(
                 style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             )
 
-            // 카테고리 (정제)
             val category = cleanCategory(restaurant.categoryName)
             if (category.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
@@ -398,7 +528,6 @@ private fun RestaurantCard(
 
             Spacer(Modifier.height(6.dp))
 
-            // 주소
             val address = restaurant.roadAddressName.ifBlank { restaurant.addressName }
             if (address.isNotBlank()) {
                 Text(
@@ -411,9 +540,7 @@ private fun RestaurantCard(
                 Spacer(Modifier.height(6.dp))
             }
 
-            // 하단 행: 거리 배지 + 전화번호
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 거리 배지
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
@@ -439,7 +566,6 @@ private fun RestaurantCard(
             }
         }
 
-        // 공유 버튼
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             IconButton(
                 onClick = onShareClick,
@@ -452,7 +578,6 @@ private fun RestaurantCard(
                     modifier = Modifier.size(18.dp)
                 )
             }
-            // 카카오맵 이동 화살표
             Text(
                 text = "›",
                 color = TextDim,
@@ -462,7 +587,6 @@ private fun RestaurantCard(
     }
 }
 
-// 거리 → 색상 (가까울수록 초록, 멀수록 흐림)
 private fun distanceColor(meters: Int): Color = when {
     meters <= 500  -> AccentGreen
     meters <= 1500 -> AccentOrange

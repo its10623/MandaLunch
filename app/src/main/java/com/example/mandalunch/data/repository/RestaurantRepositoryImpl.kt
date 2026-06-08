@@ -26,4 +26,14 @@ class RestaurantRepositoryImpl @Inject constructor(
         )
         return response.documents.map { it.toDomain() }
     }
+
+    override suspend fun searchCoordinatesByName(query: String): Coordinates {
+        val response = apiService.searchByName(query, size = 1)
+        val doc = response.documents.firstOrNull()
+            ?: throw NoSuchElementException("'$query' 위치를 찾을 수 없습니다")
+        return Coordinates(
+            latitude = doc.y.toDoubleOrNull() ?: throw IllegalStateException("잘못된 위치 데이터"),
+            longitude = doc.x.toDoubleOrNull() ?: throw IllegalStateException("잘못된 위치 데이터")
+        )
+    }
 }
