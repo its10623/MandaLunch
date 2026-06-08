@@ -1,4 +1,4 @@
-# PRD: 점심메뉴 추천 앱 (MandaLunch) — v2.4
+# PRD: 점심메뉴 추천 앱 (MandaLunch) — v2.6
 
 > **변경 이력**
 > | 버전 | 날짜 | 주요 변경 |
@@ -10,6 +10,8 @@
 > | v2.3 | 2026-06-05 | 즐겨찾기 기능(FavoriteScreen) 추가, ToggleFavoriteUseCase/GetFavoritesUseCase/ClearAllFavoritesUseCase 신규, MenuSelectScreen 즐겨찾기 우선 정렬 + 하트 토글, MandalartScreen 헤더 ♥ 진입 버튼 |
 > | v2.3 (patch) | 2026-06-05 | 단위 테스트 77건 도입(UseCase 13 + ViewModel 41 + 유틸/groupByDate 23) + 테스트 가능성 리팩토링(`presentation/util/RestaurantDisplayFormatter.kt` 추출, `groupByDate` `@VisibleForTesting internal`, `randomProvider` 주입) — 동작 변경 없음 |
 > | v2.4 | 2026-06-05 | 카카오톡 공유 기능 추가 — Kakao SDK v2-share 2.20.6 + androidx.browser 1.8.0 도입, `ShareMessage` 도메인 모델 + `KakaoShareLauncher` 파사드 신규, ResultScreen TopEnd 오버레이 공유 버튼 + RestaurantScreen 카드별 공유 버튼, 네이티브 우선 + Custom Tabs 폴백 |
+> | v2.5 | 2026-06-08 | 메뉴 편집 기능(MenuEditScreen) 추가 — 보드/풀 분리 아키텍처, Room DB v1→v2 마이그레이션(isOnBoard 컬럼), UseCase 6개 신규, pendingBoardIds 버퍼 패턴, 랜덤 채우기, 커스텀 메뉴 입력 |
+> | v2.6 | 2026-06-08 | MenuEditScreen UX 개선(navigationBarsPadding/imePadding/scroll-to-input) + RestaurantScreen 위치 텍스트 검색(장소명·주소 검색, GPS↔커스텀 전환) + 즐겨찾기 위치 저장(Room DB v2→v3, SavedLocation 도메인 모델, 수평 칩 UI) + 주소 검색 API 폴백(searchAddress 엔드포인트, 이중 탐색 전략) |
 
 ---
 
@@ -199,11 +201,27 @@
 
 ---
 
-### 4-4. 화면 4 — RestaurantScreen (v2.1 신규)
+### 4-4. 화면 4 — RestaurantScreen (v2.1 신규 / v2.6 확장)
 
-**목적:** 결과 화면에서 선택된 메뉴를 검색 키워드로 사용해, 사용자 현재 위치(FusedLocationProviderClient) 주변 1km 이내의 음식점을 Kakao Local API로 조회하여 카드 목록으로 보여준다.
+**목적:** 결과 화면에서 선택된 메뉴를 검색 키워드로 사용해, 사용자 현재 위치(FusedLocationProviderClient) 또는 텍스트로 검색한 위치 주변 1km 이내의 음식점을 Kakao Local API로 조회하여 카드 목록으로 보여준다.
 
 **경로:** `Routes.RESTAURANT/{menuName}` (Uri.encode/Uri.decode 라운드트립)
+
+**v2.6 위치 검색 UI 레이아웃:**
+
+```
+TopAppBar
+├── 좌: ← 뒤로
+└── 우: [공유 IconButton]
+
+LocationSearchBar
+├── [📍 현재위치 Chip] — GPS 모드 진입 버튼 (커스텀 모드일 때만 표시)
+├── [OutlinedTextField: "강남역, 판교 등 장소명 입력"] + [🔍 검색]
+├── [🔖 저장 버튼] — 커스텀 위치 모드이고 coords 확정된 상태에서만 표시
+├── [에러 메시지 Text] — 위치 못 찾을 때
+└── [저장된 위치 칩 Row: ScrollableRow] — 저장된 위치 칩 목록
+      └── [SavedLocationChip: 라벨 + ✕]
+```
 
 **UiState (sealed class `RestaurantUiState`):**
 
@@ -214,20 +232,48 @@
 | `Success(menuName, restaurants)` | 검색 결과 수신 | LazyColumn으로 RestaurantCard 목록(빈 결과 시 "주변에 음식점이 없어요" 안내) |
 | `Error(message)` | 네트워크/위치 획득 실패 | 에러 메시지 + 재시도 버튼 |
 
+**LocationSearchUiState (v2.6 신규):**
+
+```kotlin
+data class LocationSearchUiState(
+    val query: String = "",
+    val label: String = "현재 위치",
+    val isSearching: Boolean = false,
+    val error: String? = null,
+    val customCoords: Coordinates? = null   // null = GPS 모드, non-null = 커스텀 위치 모드
+)
+```
+
 **RestaurantCard 표시 항목:**
 - placeName(타이틀) / categoryName(서브) / roadAddressName / distanceMeters("350m") / phone
 - 카드 탭 → `Intent.ACTION_VIEW`로 placeUrl(카카오맵) 외부 핸드오프
+- 카드 우측 공유 아이콘 (카카오톡 공유, v2.4)
 
 **비즈니스 규칙:**
-- 검색 키워드: `"{menuName} 음식점"` (UseCase 내부에 격리)
+- 검색 키워드: `"{menuName} 맛집"` → 결과 없으면 `"{categoryName} 맛집"` 폴백 (UseCase 내부)
 - 검색 반경: 1000m (기본), 결과 개수: 15
 - Kakao API: `GET https://dapi.kakao.com/v2/local/search/keyword.json`
 - 인증: `Authorization: KakaoAK {BuildConfig.KAKAO_REST_API_KEY}`
+- 위치 소스: GPS(`customCoords == null`) 또는 텍스트 검색 결과(`customCoords != null`)
+
+**위치 텍스트 검색 (v2.6):**
+- 사용자가 장소명/주소 입력 후 검색 → `SearchLocationByNameUseCase` 호출
+- 1차: `v2/local/search/keyword.json` (장소명, 지하철역 등)
+- 2차 폴백: `v2/local/search/address.json` (도로명/지번 주소 전체 입력 시)
+- 검색 성공 시 `customCoords` 설정 → 해당 좌표 기준으로 음식점 재검색
+- 검색 실패 시 `LocationSearchUiState.error` 설정
+
+**저장된 위치 (v2.6):**
+- 커스텀 위치 확정 후 🔖 버튼 탭 → `SaveLocationUseCase` 호출 (중복 라벨 방지)
+- 저장된 위치 칩 탭 → 해당 좌표로 즉시 음식점 재검색
+- 칩 ✕ 탭 → `DeleteSavedLocationUseCase` 호출
+- 활성 위치 칩 하이라이트 표시
 
 **권한 처리:**
 - `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` 둘 중 하나 이상 허용 시 진행
 - Compose Screen이 `rememberLauncherForActivityResult(RequestMultiplePermissions())` 소유
 - ViewModel은 `onPermissionResult(granted: Boolean)`만 받아 Android Context 누출 차단
+- GPS 모드로 전환 시(`onUseCurrentLocation()`) `RequestGpsPermission` UiEvent 발행 → Screen이 권한 재요청 launcher 실행
 
 ---
 
@@ -433,32 +479,45 @@ data class MenuItem(
 com.example.mandalunch/
 ├── data/
 │   ├── local/room/          (Entity, DAO, Database)
-│   ├── remote/              (v2.1) KakaoLocalApiService, FusedLocationDataSource, dto/KakaoPlaceDto
-│   └── repository/          RepositoryImpl (LocationRepositoryImpl v2.1, RestaurantRepositoryImpl v2.1)
+│   │                        MenuEntity, MenuDao, SavedLocationEntity (v2.6), SavedLocationDao (v2.6)
+│   │                        MandaLunchDatabase (version 3 v2.6), MandaLunchMigrations (MIGRATION_1_2, MIGRATION_2_3 v2.6)
+│   ├── remote/              (v2.1) KakaoLocalApiService, FusedLocationDataSource
+│   │   └── dto/             KakaoPlaceDto (KakaoSearchResponseDto, KakaoPlaceDto, KakaoMetaDto)
+│   │                        KakaoAddressResponseDto, KakaoAddressDocumentDto (v2.6)
+│   └── repository/          LocationRepositoryImpl (v2.1), RestaurantRepositoryImpl (v2.1/v2.6)
+│                            SavedLocationRepositoryImpl (v2.6)
 ├── domain/
 │   ├── model/               Menu, Category, RecommendHistory
 │   │                        Coordinates (v2.1), Restaurant (v2.1)
-│   │                        ShareMessage (v2.4)
-│   ├── repository/          Repository Interface
-│   │                        LocationRepository (v2.1), RestaurantRepository (v2.1)
+│   │                        ShareMessage (v2.4), SavedLocation (v2.6)
+│   ├── repository/          MenuRepository, RecommendHistoryRepository
+│   │                        LocationRepository (v2.1), RestaurantRepository (v2.1/v2.6)
+│   │                        SavedLocationRepository (v2.6)
 │   └── usecase/             GetMenus, GetCategories, RecommendMenu, SaveHistory
 │                            GetHistoryUseCase (v2.2), DeleteAllHistoryUseCase (v2.2)
 │                            ToggleFavoriteUseCase (v2.3), GetFavoritesUseCase (v2.3), ClearAllFavoritesUseCase (v2.3)
 │                            GetCurrentLocationUseCase (v2.1), SearchNearbyRestaurantsUseCase (v2.1)
+│                            SearchLocationByNameUseCase (v2.6)
+│                            GetSavedLocationsUseCase (v2.6), SaveLocationUseCase (v2.6), DeleteSavedLocationUseCase (v2.6)
+│                            GetBoardMenusByCategoryUseCase (v2.5), GetAllMenusByCategoryUseCase (v2.5)
+│                            UpdateBoardMenusUseCase (v2.5), RandomizeBoardMenusUseCase (v2.5)
+│                            AddMenuToPoolUseCase (v2.5), DeleteMenuUseCase (v2.5)
 ├── presentation/
 │   ├── viewmodel/           MandalartViewModel, MenuSelectViewModel, ResultViewModel
-│   │                        HistoryViewModel (v2.2)  ← DateGroup/HistoryUiState/HistoryUiEvent 포함
-│   │                        FavoriteViewModel (v2.3)  ← FavoriteUiState/FavoriteUiEvent 포함
-│   │                        RestaurantViewModel (v2.1)
+│   │                        HistoryViewModel (v2.2), FavoriteViewModel (v2.3)
+│   │                        MenuEditViewModel (v2.5)
+│   │                        RestaurantViewModel (v2.1/v2.6)  ← LocationSearchUiState, savedLocations StateFlow
 │   ├── ui/
 │   │   ├── screen/          MandalartScreen, MenuSelectScreen, ResultScreen
-│   │   │                    HistoryScreen (v2.2), FavoriteScreen (v2.3), RestaurantScreen (v2.1)
+│   │   │                    HistoryScreen (v2.2), FavoriteScreen (v2.3)
+│   │   │                    RestaurantScreen (v2.1/v2.6)  ← LocationSearchBar, SavedLocationChip
+│   │   │                    MenuEditScreen (v2.5)
 │   │   ├── component/       GridCell, CategoryBlock, SpinBlock, SpinButton
 │   │   └── theme/           Color.kt, Typography.kt, Theme.kt
-│   ├── share/               KakaoShareLauncher (v2.4)  ← SDK 파사드 (네이티브 → Custom Tabs 폴백)
-│   ├── util/                RestaurantDisplayFormatter (v2.3-patch)  ← cleanCategory / formatDistanceWithTime (Compose 비의존, internal)
-│   │                        ContextExt (v2.4)  ← Context.findActivity() tailrec ext
-│   └── navigation/          NavGraph (Routes.FAVORITES v2.3, Routes.HISTORY v2.2, Routes.RESTAURANT v2.1)
+│   ├── share/               KakaoShareLauncher (v2.4)
+│   ├── util/                RestaurantDisplayFormatter (v2.3-patch)
+│   │                        ContextExt (v2.4)
+│   └── navigation/          NavGraph (Routes.FAVORITES v2.3, Routes.HISTORY v2.2, Routes.RESTAURANT v2.1, Routes.MENU_EDIT v2.5)
 └── di/                      DatabaseModule, RepositoryModule
                              NetworkModule (v2.1), LocationModule (v2.1)
 ```
@@ -610,8 +669,9 @@ val TextDim          = Color(0xFFAAAAABC)
 
 - ~~메뉴 즐겨찾기 / 제외 기능~~ ✅ v2.3 완료 (FavoriteScreen + MenuSelectScreen 우선 정렬 + 카테고리별 그룹화)
 - ~~위치 기반 주변 식당 연동~~ ✅ v2.1 완료 (RestaurantScreen + Kakao Local API)
-- 메뉴 커스터마이징 (사용자 직접 추가/삭제)
+- ~~메뉴 커스터마이징 (사용자 직접 추가/삭제)~~ ✅ v2.5 완료 (MenuEditScreen + 보드/풀 분리 + 커스텀 메뉴 추가/삭제 + 랜덤 채우기)
 - ~~오늘 뭐 먹었는지 히스토리 기록~~ ✅ v2.2 완료 (HistoryScreen + 날짜별 그룹화 + 전체 삭제)
+- ~~위치 텍스트 검색~~ ✅ v2.6 완료 (장소명·주소 검색, GPS↔커스텀 전환, 즐겨찾기 위치 저장)
 - 홈 화면 위젯 지원
 - 다국어 지원 (i18n)
 
@@ -654,6 +714,9 @@ interface RestaurantRepository {
         radiusMeters: Int = 1000,
         size: Int = 15
     ): List<Restaurant>
+
+    // v2.6 신규: 장소명 또는 주소 텍스트 → 좌표 변환 (키워드 검색 → 주소 검색 폴백)
+    suspend fun searchCoordinatesByName(query: String): Coordinates
 }
 ```
 
@@ -1356,3 +1419,483 @@ class MandaLunchApplication : Application() {
 | 공유 이벤트 패턴 | `UiEvent.ShareToKakao(message)` | 단방향 — ViewModel은 메시지 조립, Screen은 launcher 실행 |
 | ResultScreen UI | TopEnd 오버레이 IconButton | 결과 시각적 흐름 방해 최소화 |
 | RestaurantScreen UI | 카드별 IconButton | 음식점 단위 공유가 자연스러움 |
+
+---
+
+## 18. v2.5 MenuEditScreen 기술 명세 (메뉴 편집, 2026-06-08)
+
+### 18.1 개요
+
+MandalartScreen에서 카테고리 블록을 탭하면 해당 카테고리의 메뉴를 편집할 수 있는 MenuEditScreen으로 이동한다. 보드(실제로 뽑히는 8개)와 풀(전체 후보군, 최대 30개)을 분리하여 관리한다.
+
+**NavGraph 라우트:** `Routes.MENU_EDIT = "menu_edit/{categoryId}"` (categoryId: Int 인자)
+
+### 18.2 보드/풀 분리 아키텍처
+
+| 개념 | 설명 | isOnBoard |
+|------|------|-----------|
+| 보드(Board) | 만다라트 그리드에 표시되고 스핀에 사용되는 8개 메뉴 | `true` |
+| 풀(Pool) | 보드 교체 후보군, 커스텀 메뉴 포함 | `false` |
+
+### 18.3 Room DB v1 → v2 마이그레이션
+
+```kotlin
+// MenuEntity 변경
+@Entity(tableName = "menus")
+data class MenuEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val categoryId: Int,
+    val isFavorite: Boolean = false,
+    val lastRecommendedAt: Long? = null,
+    val isOnBoard: Boolean = true    // v2.5 신규 컬럼
+)
+
+// AppDatabase
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE menus ADD COLUMN isOnBoard INTEGER NOT NULL DEFAULT 1")
+    }
+}
+```
+
+### 18.4 Seed 데이터 구성 (카테고리당 30개)
+
+| 분류 | 수량 | isOnBoard |
+|------|------|-----------|
+| 보드 메뉴 | 8개 | true |
+| 풀 전용 메뉴 | 22개 | false |
+| **합계** | **30개** | — |
+
+8개 카테고리 × 30개 = 총 240개 초기 메뉴 데이터.
+
+### 18.5 DAO 확장
+
+```kotlin
+@Dao
+interface MenuDao {
+    // v2.5 신규
+    @Query("SELECT * FROM menus WHERE categoryId = :categoryId AND isOnBoard = 1")
+    fun getBoardMenusByCategory(categoryId: Int): Flow<List<MenuEntity>>
+
+    @Query("SELECT * FROM menus WHERE categoryId = :categoryId")
+    fun getAllMenusByCategory(categoryId: Int): Flow<List<MenuEntity>>
+
+    @Query("UPDATE menus SET isOnBoard = :isOnBoard WHERE id IN (:ids)")
+    suspend fun updateIsOnBoard(ids: List<Int>, isOnBoard: Boolean)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMenu(entity: MenuEntity)
+}
+```
+
+### 18.6 UseCase (6개 신규)
+
+```kotlin
+// 보드 메뉴 조회
+class GetBoardMenusByCategoryUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    operator fun invoke(categoryId: Int): Flow<List<Menu>>
+}
+
+// 전체 메뉴 조회 (보드 + 풀)
+class GetAllMenusByCategoryUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    operator fun invoke(categoryId: Int): Flow<List<Menu>>
+}
+
+// 보드 메뉴 저장 (pendingBoardIds → DB 반영)
+class UpdateBoardMenusUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    suspend operator fun invoke(categoryId: Int, boardIds: Set<Int>)
+    // 구현: 해당 카테고리 전체 isOnBoard = false → boardIds 목록만 isOnBoard = true
+}
+
+// 풀에서 랜덤 8개 선택 → 보드 적용
+class RandomizeBoardMenusUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    suspend operator fun invoke(categoryId: Int): Set<Int>
+    // 구현: 전체 메뉴 shuffled().take(minOf(8, size)) → UpdateBoardMenusUseCase 위임
+}
+
+// 커스텀 메뉴 풀 추가
+class AddMenuToPoolUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    suspend operator fun invoke(name: String, categoryId: Int)
+    // isOnBoard = false로 삽입
+}
+
+// 메뉴 단건 삭제
+class DeleteMenuUseCase @Inject constructor(
+    private val repository: MenuRepository
+) {
+    suspend operator fun invoke(menuId: Int)
+}
+```
+
+### 18.7 MenuEditViewModel — pendingBoardIds 버퍼 패턴
+
+```kotlin
+@HiltViewModel
+class MenuEditViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val getAllMenusByCategory: GetAllMenusByCategoryUseCase,
+    private val updateBoardMenus: UpdateBoardMenusUseCase,
+    private val randomizeBoardMenus: RandomizeBoardMenusUseCase,
+    private val addMenuToPool: AddMenuToPoolUseCase,
+    private val deleteMenu: DeleteMenuUseCase
+) : ViewModel() {
+
+    private val categoryId: Int = savedStateHandle["categoryId"] ?: -1
+
+    // 저장 전까지 로컬에서만 편집 상태 유지 — DB 미반영
+    private val pendingBoardIds = mutableSetOf<Int>()
+
+    val uiState: StateFlow<MenuEditUiState>
+    val events: SharedFlow<MenuEditUiEvent>
+
+    fun onToggleBoardMenu(menuId: Int)    // 8개 초과 시 BoardFull 이벤트
+    fun onRandomFill()                    // 즉시 DB 저장 + pendingBoardIds 동기화
+    fun onSave()                          // pendingBoardIds → DB 저장 → NavigateBack
+    fun onAddCustomMenu(name: String)
+    fun onDeleteMenu(menuId: Int)
+    fun onCustomMenuInputChanged(input: String)
+}
+```
+
+**핵심 설계 원칙:**
+- `pendingBoardIds`: 사용자가 "저장" 버튼을 누르기 전까지 DB에 반영되지 않는다. 이탈 시 변경이 취소되어 UX상 자연스럽다.
+- `onRandomFill()`: 랜덤 채우기는 사용자의 명시적 의도가 담긴 액션이므로 즉시 DB 반영 후 `pendingBoardIds`를 동기화한다.
+
+### 18.8 UiState / UiEvent
+
+```kotlin
+data class MenuEditUiState(
+    val boardMenus: List<Menu> = emptyList(),
+    val poolMenus: List<Menu> = emptyList(),
+    val isLoading: Boolean = true,
+    val customMenuInput: String = "",
+    val boardFull: Boolean = false
+)
+
+sealed class MenuEditUiEvent {
+    object NavigateBack : MenuEditUiEvent()
+    object BoardFull : MenuEditUiEvent()      // Snackbar: "보드는 8개까지만 가능해요"
+    object SaveCompleted : MenuEditUiEvent()
+}
+```
+
+### 18.9 화면 구성 (MenuEditScreen)
+
+```
+TopAppBar
+├── 좌: ← 뒤로
+├── 중앙: {카테고리 이모지} {카테고리명} 편집
+└── 우: 저장 버튼 (AccentOrange)
+
+LazyColumn
+├── [보드 섹션 헤더] "보드 메뉴 (N/8)"
+│   └── 각 메뉴 카드: [체크박스 ON] [메뉴명]
+│
+├── [풀 섹션 헤더] "풀 메뉴"
+│   └── 각 메뉴 카드: [체크박스 OFF] [메뉴명] [삭제 아이콘]
+│
+└── [커스텀 메뉴 입력 Row]
+    ├── TextField (hint: "메뉴 이름 입력")
+    └── 추가 버튼
+
+하단 고정 버튼: 🎲 랜덤 채우기 (AccentOrange → AccentRed 그라디언트)
+```
+
+### 18.10 NavGraph 확장
+
+- `Routes.MENU_EDIT = "menu_edit/{categoryId}"` (categoryId: Int)
+- MandalartScreen의 `CategoryCell` 탭 콜백: `onNavigateToMenuEdit: (Int) -> Unit` 추가
+- `composable(Routes.MENU_EDIT) { entry -> MenuEditScreen(categoryId = ..., onBack = { navController.popBackStack() }) }` 등록
+
+### 18.11 의사결정 요약
+
+| 결정 사항 | 선택 | 이유 |
+|----------|------|------|
+| 보드/풀 표현 | `isOnBoard` 단일 컬럼 | 별도 테이블보다 단순, `IN` 절 일괄 갱신으로 충분 |
+| 편집 중 DB 미반영 | `pendingBoardIds` 버퍼 패턴 | 저장 없이 이탈 시 변경 취소 UX; "저장" 명시적 액션 유지 |
+| 랜덤 채우기 즉시 반영 | 즉시 DB 저장 + pendingBoardIds 동기화 | 명시적 랜덤 액션은 저장 의도 포함 |
+| Seed 풀 크기 | 보드 8 + 풀 22 = 30개 | 랜덤 채우기 다양성 확보 (30C8 ≈ 5.9M 조합) |
+| 커스텀 메뉴 입력 위치 | 화면 하단 인라인 TextField | 다이얼로그 없이 맥락 내 즉시 추가, UX 흐름 단절 없음 |
+| 보드 8개 초과 처리 | UiEvent.BoardFull → Snackbar | 이유를 알려주는 방식이 단순 버튼 비활성화보다 UX 이해도 높음 |
+| DB 마이그레이션 | `ALTER TABLE ADD COLUMN DEFAULT 1` | 기존 사용자 데이터 보존; 파괴적 마이그레이션 회피 |
+| IN 절 빈 리스트 | early return 가드 | SQL `WHERE id IN ()` 문법 오류 방지 |
+
+---
+
+## 19. v2.6 기술 명세 (위치 텍스트 검색 + 저장 위치, 2026-06-08)
+
+### 19.1 개요
+
+RestaurantScreen에 텍스트 기반 위치 검색 기능과 자주 쓰는 위치를 저장/재사용하는 기능을 추가한다. 기존 GPS 모드는 유지하며, 사용자가 장소명이나 주소를 직접 입력하여 해당 위치 기준으로 음식점을 검색할 수 있다.
+
+### 19.2 MenuEditScreen UX 개선 (v2.5 → v2.6 patch)
+
+| 개선 항목 | 변경 내용 | 적용 Modifier |
+|----------|----------|---------------|
+| 하단 랜덤채우기 버튼 가려짐 | 시스템 네비게이션 바 높이만큼 padding 추가 | `Modifier.navigationBarsPadding()` |
+| 키보드가 커스텀 메뉴 입력창 가림 | 키보드 높이만큼 LazyColumn 줄어들기 | `Modifier.imePadding()` on LazyColumn |
+| 커스텀 메뉴 입력 포커스 시 가려짐 | TextField 포커스 감지 후 리스트 마지막 항목으로 스크롤 | `onFocusChanged { if (it.isFocused) animateScrollToItem(last) }` |
+
+### 19.3 위치 텍스트 검색 도메인 모델 및 UseCase
+
+**SearchLocationByNameUseCase (신규):**
+```kotlin
+class SearchLocationByNameUseCase @Inject constructor(
+    private val restaurantRepository: RestaurantRepository
+) {
+    suspend operator fun invoke(query: String): Result<Coordinates> = runCatching {
+        restaurantRepository.searchCoordinatesByName(query)
+    }
+}
+```
+
+**RestaurantRepository 확장:**
+```kotlin
+interface RestaurantRepository {
+    suspend fun searchNearby(...): List<Restaurant>
+    suspend fun searchCoordinatesByName(query: String): Coordinates  // v2.6 신규
+}
+```
+
+**RestaurantRepositoryImpl 이중 탐색 전략:**
+```kotlin
+override suspend fun searchCoordinatesByName(query: String): Coordinates {
+    // 1차: 키워드 검색 (장소명, 지하철역 등)
+    val keywordDoc = apiService.searchByName(query, size = 1).documents.firstOrNull()
+    if (keywordDoc != null) {
+        val lat = keywordDoc.y.toDoubleOrNull()
+        val lng = keywordDoc.x.toDoubleOrNull()
+        if (lat != null && lng != null) return Coordinates(lat, lng)
+    }
+    // 2차: 주소 검색 폴백 (도로명/지번 주소 전체 입력 시)
+    val addressDoc = apiService.searchAddress(query, size = 1).documents.firstOrNull()
+        ?: throw NoSuchElementException("'$query' 위치를 찾을 수 없습니다")
+    return Coordinates(
+        latitude = addressDoc.y.toDoubleOrNull() ?: throw IllegalStateException("잘못된 위치 데이터"),
+        longitude = addressDoc.x.toDoubleOrNull() ?: throw IllegalStateException("잘못된 위치 데이터")
+    )
+}
+```
+
+### 19.4 KakaoLocalApiService 엔드포인트 추가
+
+```kotlin
+// 좌표 없이 위치명으로만 검색 — 결과 첫 번째 document의 x/y를 좌표로 활용
+@GET("v2/local/search/keyword.json")
+suspend fun searchByName(
+    @Query("query") query: String,
+    @Query("size") size: Int = 1
+): KakaoSearchResponseDto
+
+// 전체 주소 텍스트로 좌표 검색 (키워드 검색 폴백용)
+@GET("v2/local/search/address.json")
+suspend fun searchAddress(
+    @Query("query") query: String,
+    @Query("size") size: Int = 1
+): KakaoAddressResponseDto
+```
+
+**KakaoAddressResponseDto (신규 DTO):**
+```kotlin
+data class KakaoAddressResponseDto(
+    @SerializedName("documents") val documents: List<KakaoAddressDocumentDto>
+)
+
+data class KakaoAddressDocumentDto(
+    @SerializedName("x") val x: String,  // 경도(longitude)
+    @SerializedName("y") val y: String   // 위도(latitude)
+)
+```
+
+### 19.5 저장된 위치 도메인 모델
+
+```kotlin
+data class SavedLocation(
+    val id: Int,
+    val label: String,
+    val latitude: Double,
+    val longitude: Double
+)
+```
+
+### 19.6 Room DB v2 → v3 마이그레이션
+
+```kotlin
+// SavedLocationEntity (신규 테이블)
+@Entity(tableName = "saved_locations")
+data class SavedLocationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val label: String,
+    val latitude: Double,
+    val longitude: Double,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+// MIGRATION_2_3
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS saved_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                label TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                createdAt INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent())
+    }
+}
+```
+
+### 19.7 SavedLocationDao
+
+```kotlin
+@Dao
+interface SavedLocationDao {
+    @Query("SELECT * FROM saved_locations ORDER BY createdAt DESC")
+    fun getAll(): Flow<List<SavedLocationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(entity: SavedLocationEntity): Long
+
+    @Query("DELETE FROM saved_locations WHERE id = :id")
+    suspend fun deleteById(id: Int)
+
+    @Query("SELECT COUNT(*) FROM saved_locations WHERE label = :label")
+    suspend fun countByLabel(label: String): Int
+}
+```
+
+### 19.8 SavedLocationRepository 인터페이스 및 UseCase 3종
+
+```kotlin
+interface SavedLocationRepository {
+    fun getSavedLocations(): Flow<List<SavedLocation>>
+    suspend fun saveLocation(label: String, latitude: Double, longitude: Double)
+    suspend fun deleteLocation(id: Int)
+    suspend fun isAlreadySaved(label: String): Boolean
+}
+
+// GetSavedLocationsUseCase
+class GetSavedLocationsUseCase @Inject constructor(
+    private val repository: SavedLocationRepository
+) {
+    operator fun invoke(): Flow<List<SavedLocation>> = repository.getSavedLocations()
+}
+
+// SaveLocationUseCase — 중복 라벨 방지 가드 포함
+class SaveLocationUseCase @Inject constructor(
+    private val repository: SavedLocationRepository
+) {
+    suspend operator fun invoke(label: String, coords: Coordinates): Result<Unit> = runCatching {
+        if (repository.isAlreadySaved(label))
+            throw IllegalStateException("\"$label\"은 이미 저장된 위치입니다")
+        repository.saveLocation(label, coords.latitude, coords.longitude)
+    }
+}
+
+// DeleteSavedLocationUseCase
+class DeleteSavedLocationUseCase @Inject constructor(
+    private val repository: SavedLocationRepository
+) {
+    suspend operator fun invoke(id: Int) = repository.deleteLocation(id)
+}
+```
+
+### 19.9 RestaurantViewModel 변경 (v2.6)
+
+```kotlin
+// LocationSearchUiState — 별도 StateFlow로 관리
+data class LocationSearchUiState(
+    val query: String = "",
+    val label: String = "현재 위치",
+    val isSearching: Boolean = false,
+    val error: String? = null,
+    val customCoords: Coordinates? = null  // null = GPS 모드
+)
+
+sealed class RestaurantUiEvent {
+    data class ShareToKakao(val message: ShareMessage) : RestaurantUiEvent()  // 기존
+    object RequestGpsPermission : RestaurantUiEvent()   // v2.6 신규: GPS 모드 전환 시 권한 재요청
+    data class ShowToast(val message: String) : RestaurantUiEvent()  // v2.6 신규
+}
+
+// 신규 함수
+fun onLocationQueryChange(query: String)
+fun onSearchByLocation()           // 텍스트 검색 → customCoords 설정 → 음식점 재검색
+fun onUseCurrentLocation()         // GPS 모드 복귀, RequestGpsPermission 이벤트 발행
+fun onSelectSavedLocation(location: SavedLocation)  // 저장된 위치 탭 → 즉시 재검색
+fun onSaveCurrentLocation()        // 현재 customCoords를 label로 저장
+fun onDeleteSavedLocation(id: Int)
+
+// 저장된 위치 StateFlow
+val savedLocations: StateFlow<List<SavedLocation>> =
+    getSavedLocationsUseCase()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+```
+
+**검색 코어 (`doSearchRestaurants`):**
+```kotlin
+// menuName 맛집 검색 → 결과 없으면 categoryName 맛집으로 폴백
+private suspend fun doSearchRestaurants(coords: Coordinates) {
+    val menuList = searchNearbyRestaurantsUseCase("$menuNameForDisplay 맛집", coords).getOrNull()
+    if (!menuList.isNullOrEmpty()) {
+        _uiState.value = RestaurantUiState.Success(menuNameForDisplay, menuList)
+        return
+    }
+    searchNearbyRestaurantsUseCase("$categoryName 맛집", coords)
+        .onSuccess { _uiState.value = RestaurantUiState.Success(menuNameForDisplay, it) }
+        .onFailure { _uiState.value = RestaurantUiState.Error(it.message ?: "음식점 정보를 불러오지 못했습니다.") }
+}
+```
+
+### 19.10 RestaurantScreen Composable 추가 (v2.6)
+
+```kotlin
+// 위치 검색 바 (GPS 칩 + 검색 TextField + 저장 버튼 + 에러 + 칩 Row)
+@Composable
+private fun LocationSearchBar(
+    locationState: LocationSearchUiState,
+    savedLocations: List<SavedLocation>,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onUseCurrentLocation: () -> Unit,
+    onSaveLocation: () -> Unit,
+    onSelectSaved: (SavedLocation) -> Unit,
+    onDeleteSaved: (Int) -> Unit
+)
+
+// 저장된 위치 개별 칩
+@Composable
+private fun SavedLocationChip(
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+)
+```
+
+### 19.11 의사결정 요약
+
+| 결정 사항 | 선택 | 이유 |
+|----------|------|------|
+| 위치 검색 모드 구분 | `customCoords == null` (GPS) / `non-null` (커스텀) | 단일 필드로 두 모드 구분 — 별도 enum 불필요 |
+| GPS 복귀 시 권한 재요청 | `RequestGpsPermission` UiEvent 발행 | ViewModel은 Context 미보유 — Screen이 launcher 실행 |
+| 주소 검색 폴백 | 키워드 검색 실패 시에만 주소 검색 호출 | 일반적 사용(장소명)은 1 RTT — API 호출 수 최소화 |
+| 저장 위치 중복 방지 | `isAlreadySaved(label)` 체크 후 `IllegalStateException` | DB 레벨에서 처리하는 것보다 UseCase에서 명확한 에러 제공 |
+| 저장된 위치 StateFlow | `stateIn(WhileSubscribed(5000))` | UI 진입 중에만 구독 — 리소스 낭비 방지 |
+| DB version | v2 → v3 (`MIGRATION_2_3`) | saved_locations 신규 테이블 추가 |
+| 저장 위치 삭제 방식 | id 기반 단건 삭제 | label 기반은 중복 가능성 — PK 사용 |
+| 활성 칩 하이라이트 | `locationState.label == chip.label` 비교 | 좌표 직접 비교는 부동소수점 오차 위험 |
+| 검색 키워드 전략 | `{menuName} 맛집` → `{categoryName} 맛집` 폴백 | 메뉴명 특화 검색 우선, 결과 없을 때만 카테고리로 확대 |
