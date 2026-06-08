@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -118,27 +117,9 @@ fun MenuEditScreen(
                     titleContentColor = TextPrimary
                 )
             )
-        },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(BackgroundDark)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                val canRandomize = (state.boardMenus.size + state.poolMenus.size) >= 8
-                    && !state.isSaving && !state.isLoading
-                GradientButton(
-                    text = "🎲 랜덤 채우기",
-                    gradient = listOf(AccentRed, AccentOrange),
-                    enabled = canRandomize,
-                    onClick = viewModel::onRandomize
-                )
-            }
         }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(BackgroundDark)
@@ -146,21 +127,30 @@ fun MenuEditScreen(
         ) {
             when {
                 state.isLoading -> {
-                    CircularProgressIndicator(
-                        color = AccentOrange,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = AccentOrange)
+                    }
                 }
                 else -> {
+                    val canRandomize = (state.boardMenus.size + state.poolMenus.size) >= 8
+                        && !state.isSaving
                     MenuEditContent(
+                        modifier = Modifier.weight(1f),
                         boardMenus = state.boardMenus,
                         poolMenus = state.poolMenus,
                         canAddToBoard = state.canAddToBoard,
+                        canRandomize = canRandomize,
                         pendingMenuName = state.pendingMenuName,
                         onToggleBoardMenu = viewModel::onToggleBoardMenu,
                         onDeleteMenu = viewModel::onDeleteMenu,
                         onUpdatePendingName = viewModel::onUpdatePendingName,
-                        onAddMenu = viewModel::onAddMenu
+                        onAddMenu = viewModel::onAddMenu,
+                        onRandomize = viewModel::onRandomize
                     )
                 }
             }
@@ -170,18 +160,21 @@ fun MenuEditScreen(
 
 @Composable
 private fun MenuEditContent(
+    modifier: Modifier = Modifier,
     boardMenus: List<Menu>,
     poolMenus: List<Menu>,
     canAddToBoard: Boolean,
+    canRandomize: Boolean,
     pendingMenuName: String,
     onToggleBoardMenu: (Menu) -> Unit,
     onDeleteMenu: (Menu) -> Unit,
     onUpdatePendingName: (String) -> Unit,
-    onAddMenu: () -> Unit
+    onAddMenu: () -> Unit,
+    onRandomize: () -> Unit
 ) {
     val listState = rememberLazyListState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier) {
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
@@ -228,6 +221,21 @@ private fun MenuEditContent(
                     onDelete = { onDeleteMenu(menu) }
                 )
             }
+        }
+
+        // 랜덤 채우기 버튼 — 키보드 올라오면 입력창 바로 위로 함께 올라감
+        HorizontalDivider(color = TextDim.copy(alpha = 0.15f))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            GradientButton(
+                text = "🎲 랜덤 채우기",
+                gradient = listOf(AccentRed, AccentOrange),
+                enabled = canRandomize,
+                onClick = onRandomize
+            )
         }
 
         HorizontalDivider(color = TextDim.copy(alpha = 0.15f))
@@ -295,7 +303,6 @@ private fun MenuEditRow(
         )
 
         if (isOnBoard) {
-            // 보드 메뉴: X 버튼만
             CircleActionButton(
                 text = "✕",
                 contentColor = AccentRed,
@@ -304,7 +311,6 @@ private fun MenuEditRow(
                 enabled = true
             )
         } else {
-            // 풀 메뉴: + 버튼 (보드 8개 미만일 때만) + 삭제 버튼
             CircleActionButton(
                 text = "＋",
                 contentColor = if (canAddToBoard) AccentGreen else TextDim,
