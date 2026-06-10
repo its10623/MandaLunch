@@ -5,6 +5,7 @@ import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
 import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
+import com.example.mandalunch.domain.usecase.RandomizeBoardMenusUseCase
 import com.example.mandalunch.testutil.MainDispatcherRule
 import io.mockk.every
 import io.mockk.mockk
@@ -26,6 +27,7 @@ class MandalartViewModelTest {
 
     private val getCategoriesUseCase: GetCategoriesUseCase = mockk(relaxed = true)
     private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase = mockk(relaxed = true)
+    private val randomizeBoardMenusUseCase: RandomizeBoardMenusUseCase = mockk(relaxed = true)
 
     // CW_TO_POSITION = [0,1,2,4,7,6,5,3]
     // CW index 0..7 → position 0..7 매핑
@@ -44,7 +46,7 @@ class MandalartViewModelTest {
         (1..8).map { Menu(id = categoryId * 100 + it, name = "m$it", categoryId = categoryId) }
 
     private fun createViewModel(): MandalartViewModel =
-        MandalartViewModel(getCategoriesUseCase, getBoardMenusByCategoryUseCase)
+        MandalartViewModel(getCategoriesUseCase, getBoardMenusByCategoryUseCase, randomizeBoardMenusUseCase)
 
     @Test
     fun init_loadsAllCategoriesAndMenusMap() = runTest {

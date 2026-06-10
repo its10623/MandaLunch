@@ -6,6 +6,7 @@ import com.example.mandalunch.domain.model.Category
 import com.example.mandalunch.domain.model.Menu
 import com.example.mandalunch.domain.usecase.GetBoardMenusByCategoryUseCase
 import com.example.mandalunch.domain.usecase.GetCategoriesUseCase
+import com.example.mandalunch.domain.usecase.RandomizeBoardMenusUseCase
 import com.example.mandalunch.presentation.viewmodel.util.MandalaLayout
 import com.example.mandalunch.presentation.viewmodel.util.SpinAnimator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
@@ -38,7 +40,8 @@ sealed class MandalartUiEvent {
 @HiltViewModel
 class MandalartViewModel @Inject constructor(
     private val getCategoriesUseCase: GetCategoriesUseCase,
-    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase
+    private val getBoardMenusByCategoryUseCase: GetBoardMenusByCategoryUseCase,
+    private val randomizeBoardMenusUseCase: RandomizeBoardMenusUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MandalartUiState())
@@ -54,7 +57,18 @@ class MandalartViewModel @Inject constructor(
     internal var randomProvider: () -> Int = { (0..7).random() }
 
     init {
+        autoRandomizeBoard()
         observeCategoriesAndMenus()
+    }
+
+    /** 앱 시작 시 모든 카테고리의 보드 메뉴를 랜덤으로 교체한다. */
+    private fun autoRandomizeBoard() {
+        viewModelScope.launch {
+            val categories = getCategoriesUseCase().first { it.isNotEmpty() }
+            categories.forEach { cat ->
+                try { randomizeBoardMenusUseCase(cat.id) } catch (_: Exception) {}
+            }
+        }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
