@@ -22,11 +22,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.mandalunch"
+        applicationId = "com.its10623.mandalunch"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.2.1"
 
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoRestApiKey\"")
         buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoNativeAppKey\"")
