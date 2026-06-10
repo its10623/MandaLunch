@@ -1,7 +1,9 @@
 package com.example.mandalunch.presentation.navigation
 
 import android.net.Uri
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -44,7 +46,10 @@ fun NavGraph() {
         navController = navController,
         startDestination = Routes.MANDALART
     ) {
-        composable(Routes.MANDALART) {
+        composable(Routes.MANDALART) { backStackEntry ->
+            val autoSpin by backStackEntry.savedStateHandle
+                .getStateFlow("autoSpin", false)
+                .collectAsStateWithLifecycle()
             MandalartScreen(
                 onNavigateToMenuSelect = { categoryId ->
                     navController.navigate(Routes.menuSelect(categoryId))
@@ -57,6 +62,10 @@ fun NavGraph() {
                 },
                 onNavigateToFavorites = {
                     navController.navigate(Routes.FAVORITES)
+                },
+                autoSpin = autoSpin,
+                onAutoSpinConsumed = {
+                    backStackEntry.savedStateHandle.remove<Boolean>("autoSpin")
                 }
             )
         }
@@ -123,7 +132,12 @@ fun NavGraph() {
             )
         ) {
             RestaurantScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onRespin = {
+                    navController.getBackStackEntry(Routes.MANDALART)
+                        .savedStateHandle["autoSpin"] = true
+                    navController.popBackStack(Routes.MANDALART, inclusive = false)
+                }
             )
         }
     }

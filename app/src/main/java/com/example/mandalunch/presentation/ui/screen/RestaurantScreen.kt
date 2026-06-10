@@ -86,6 +86,7 @@ import com.example.mandalunch.presentation.viewmodel.RestaurantViewModel
 @Composable
 fun RestaurantScreen(
     onBack: () -> Unit,
+    onRespin: () -> Unit = {},
     viewModel: RestaurantViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -236,7 +237,8 @@ fun RestaurantScreen(
                                 context.startActivity(intent)
                             }
                         },
-                        onShareClick = viewModel::onShareRestaurant
+                        onShareClick = viewModel::onShareRestaurant,
+                        onRespin = onRespin
                     )
                 }
             }
@@ -509,7 +511,8 @@ private fun ErrorContent(message: String, onRetry: () -> Unit) {
 private fun SuccessContent(
     restaurants: List<Restaurant>,
     onRestaurantClick: (String) -> Unit,
-    onShareClick: (Restaurant) -> Unit
+    onShareClick: (Restaurant) -> Unit,
+    onRespin: () -> Unit = {}
 ) {
     if (restaurants.isEmpty()) {
         Column(
@@ -526,6 +529,13 @@ private fun SuccessContent(
                 color = TextDim,
                 textAlign = TextAlign.Center,
                 style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(Modifier.height(28.dp))
+            SpinButton(
+                text = "🎲 다시 뽑기",
+                backgroundColor = AccentOrange,
+                contentColor = TextPrimary,
+                onClick = onRespin
             )
         }
         return
