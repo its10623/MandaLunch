@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -388,11 +389,15 @@ private fun AddMenuRow(
                 focusedContainerColor = SurfaceDark,
                 unfocusedContainerColor = SurfaceDark
             ),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .imePadding()
         )
         Spacer(Modifier.padding(start = 8.dp))
         Box(
             modifier = Modifier
+                .imePadding()
                 .clip(RoundedCornerShape(10.dp))
                 .background(
                     if (pendingMenuName.isNotBlank()) AccentOrange else Surface2Dark
