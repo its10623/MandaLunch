@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mandalunch.domain.model.Category
@@ -46,16 +48,13 @@ private val DIRECTION_EMOJI = arrayOf("↖", "↑", "↗", "←", "", "→", "�
 
 private val BlockBorder = Color.White.copy(alpha = 0.18f)
 
-/**
- * 만다라트 9×9 그리드의 가운데(CENTER) 3×3 블록.
- * 8개 HintCell + 1개 CenterSpinCell 로 구성.
- */
 @Composable
 fun SpinBlock(
     categories: List<Category>,
     spinState: SpinState,
     highlightedCwIndex: Int,
     onSpinClick: () -> Unit,
+    cellSize: Dp = 38.dp,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -78,6 +77,7 @@ fun SpinBlock(
                         CenterSpinCell(
                             spinState = spinState,
                             enabled = spinState !is SpinState.Spinning,
+                            cellSize = cellSize,
                             onClick = onSpinClick
                         )
                     } else {
@@ -93,7 +93,8 @@ fun SpinBlock(
                             emoji = emoji,
                             name = name,
                             isGlow = isGlow,
-                            isSelected = isSelected
+                            isSelected = isSelected,
+                            cellSize = cellSize
                         )
                     }
                 }
@@ -107,7 +108,8 @@ private fun HintCell(
     emoji: String,
     name: String,
     isGlow: Boolean,
-    isSelected: Boolean
+    isSelected: Boolean,
+    cellSize: Dp
 ) {
     val haptic = LocalHapticFeedback.current
     LaunchedEffect(isSelected) {
@@ -129,10 +131,11 @@ private fun HintCell(
 
     val textColor: Color = if (isGlow || isSelected) TextPrimary else TextDim
     val fontWeight = if (isGlow || isSelected) FontWeight.Bold else FontWeight.Normal
+    val fontSize = (cellSize.value * 0.24f).sp
 
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(cellSize)
             .scale(scale)
             .clip(RoundedCornerShape(4.dp))
             .background(brush)
@@ -149,8 +152,9 @@ private fun HintCell(
             color = textColor,
             textAlign = TextAlign.Center,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             style = TextStyle(
-                fontSize = 9.sp,
+                fontSize = fontSize,
                 fontWeight = fontWeight
             )
         )
@@ -161,6 +165,7 @@ private fun HintCell(
 private fun CenterSpinCell(
     spinState: SpinState,
     enabled: Boolean,
+    cellSize: Dp,
     onClick: () -> Unit
 ) {
     val brush: Brush = when (spinState) {
@@ -178,10 +183,11 @@ private fun CenterSpinCell(
         is SpinState.Selected -> "🎉"
         else -> "🎲"
     }
+    val emojiFontSize = (cellSize.value * 0.47f).sp
 
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(cellSize)
             .clip(RoundedCornerShape(4.dp))
             .background(brush)
             .clickable(enabled = enabled) { onClick() }
@@ -193,7 +199,7 @@ private fun CenterSpinCell(
             color = TextPrimary,
             textAlign = TextAlign.Center,
             style = TextStyle(
-                fontSize = 18.sp,
+                fontSize = emojiFontSize,
                 fontWeight = FontWeight.Bold
             )
         )

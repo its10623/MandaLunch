@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mandalunch.presentation.ui.theme.Surface2Dark
@@ -27,18 +29,18 @@ private val DefaultBorder = Color.White.copy(alpha = 0.18f)
 fun GridCell(
     text: String,
     modifier: Modifier = Modifier,
-    size: Int = 38,
+    size: Dp = 38.dp,
     isCenter: Boolean = false,
     backgroundColor: Color = SurfaceDark,
     textColor: Color = TextPrimary,
     isHighlighted: Boolean = false,
     highlightColor: Color = Color.Transparent,
-    fontSize: Int = if (isCenter) 11 else 9
 ) {
+    val fontSize = (size.value * (if (isCenter) 0.29f else 0.24f)).sp
     val bg = if (isHighlighted) highlightColor else if (isCenter) Surface2Dark else backgroundColor
     Box(
         modifier = modifier
-            .size(size.dp)
+            .size(size)
             .clip(RoundedCornerShape(4.dp))
             .background(bg)
             .border(
@@ -54,8 +56,9 @@ fun GridCell(
             color = textColor,
             textAlign = TextAlign.Center,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             style = TextStyle(
-                fontSize = fontSize.sp,
+                fontSize = fontSize,
                 fontWeight = if (isCenter) FontWeight.SemiBold else FontWeight.Normal
             )
         )
